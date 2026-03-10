@@ -92,7 +92,7 @@ module Fastlane
           params.each do |key, value|
             next if value.nil?
 
-            if value.is_a?(Array)
+            if value.kind_of?(Array)
               value.each { |v| pairs << [key.to_s, v.to_s] }
             else
               pairs << [key.to_s, value.to_s]

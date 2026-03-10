@@ -148,92 +148,92 @@ module Fastlane
         def available_options
           [
             FastlaneCore::ConfigItem.new(key: :auth_token,
-                                     env_name: "SENTRY_AUTH_TOKEN",
-                                  description: "Sentry API Bearer auth token",
-                                     optional: false,
+                                         env_name: "SENTRY_AUTH_TOKEN",
+                                         description: "Sentry API Bearer auth token",
+                                         optional: false,
                                          type: String,
-                                    sensitive: true,
-                           code_gen_sensitive: true,
-                                verify_block: proc do |value|
-                                                UI.user_error!("No Sentry auth token given") if value.to_s.empty?
-                                              end),
+                                         sensitive: true,
+                                         code_gen_sensitive: true,
+                                         verify_block: proc do |value|
+                                                         UI.user_error!("No Sentry auth token given") if value.to_s.empty?
+                                                       end),
             FastlaneCore::ConfigItem.new(key: :org_slug,
-                                     env_name: "SENTRY_ORG_SLUG",
-                                  description: "Sentry organization slug",
-                                     optional: false,
+                                         env_name: "SENTRY_ORG_SLUG",
+                                         description: "Sentry organization slug",
+                                         optional: false,
                                          type: String),
             FastlaneCore::ConfigItem.new(key: :project_id,
-                                     env_name: "SENTRY_PROJECT_ID",
-                                  description: "Sentry numeric project ID (for Sessions & Events APIs)",
-                                     optional: false,
+                                         env_name: "SENTRY_PROJECT_ID",
+                                         description: "Sentry numeric project ID (for Sessions & Events APIs)",
+                                         optional: false,
                                          type: String),
             FastlaneCore::ConfigItem.new(key: :project_slug,
-                                     env_name: "SENTRY_PROJECT_SLUG",
-                                  description: "Sentry project slug (for Issues API)",
-                                     optional: false,
+                                         env_name: "SENTRY_PROJECT_SLUG",
+                                         description: "Sentry project slug (for Issues API)",
+                                         optional: false,
                                          type: String),
             FastlaneCore::ConfigItem.new(key: :environment,
-                                     env_name: "SENTRY_ENVIRONMENT",
-                                  description: "Environment filter",
-                                     optional: true,
-                                default_value: "production",
+                                         env_name: "SENTRY_ENVIRONMENT",
+                                         description: "Environment filter",
+                                         optional: true,
+                                         default_value: "production",
                                          type: String),
             FastlaneCore::ConfigItem.new(key: :stats_period,
-                                  description: "Rolling time window (e.g. '7d', '14d')",
-                                     optional: true,
-                                default_value: "7d",
+                                         description: "Rolling time window (e.g. '7d', '14d')",
+                                         optional: true,
+                                         default_value: "7d",
                                          type: String),
             # ── Targets ──
             FastlaneCore::ConfigItem.new(key: :crash_free_target,
-                                  description: "Target crash-free session rate (e.g. 0.998 = 99.8%)",
-                                     optional: true,
-                                default_value: 0.998,
+                                         description: "Target crash-free session rate (e.g. 0.998 = 99.8%)",
+                                         optional: true,
+                                         default_value: 0.998,
                                          type: Float),
             FastlaneCore::ConfigItem.new(key: :ttid_p95_target_ms,
-                                  description: "Target TTID p95 in milliseconds",
-                                     optional: true,
-                                default_value: 1000,
+                                         description: "Target TTID p95 in milliseconds",
+                                         optional: true,
+                                         default_value: 1000,
                                          type: Integer),
             # ── Comparison flags ──
             FastlaneCore::ConfigItem.new(key: :compare_weeks,
-                                  description: "Include week-over-week comparison",
-                                     optional: true,
-                                default_value: true,
+                                         description: "Include week-over-week comparison",
+                                         optional: true,
+                                         default_value: true,
                                          type: Fastlane::Boolean),
             FastlaneCore::ConfigItem.new(key: :compare_releases,
-                                  description: "Include release-over-release comparison",
-                                     optional: true,
-                                default_value: true,
+                                         description: "Include release-over-release comparison",
+                                         optional: true,
+                                         default_value: true,
                                          type: Fastlane::Boolean),
             # ── Release versions ──
             FastlaneCore::ConfigItem.new(key: :current_release,
-                                  description: "Current release version for issue comparison (e.g. 'v25.10.0')",
-                                     optional: true,
+                                         description: "Current release version for issue comparison (e.g. 'v25.10.0')",
+                                         optional: true,
                                          type: String),
             FastlaneCore::ConfigItem.new(key: :previous_release,
-                                  description: "Previous release version for issue comparison (e.g. 'v25.9.0')",
-                                     optional: true,
+                                         description: "Previous release version for issue comparison (e.g. 'v25.9.0')",
+                                         optional: true,
                                          type: String),
             # ── Limits ──
             FastlaneCore::ConfigItem.new(key: :release_count,
-                                  description: "Number of releases to compare",
-                                     optional: true,
-                                default_value: 5,
+                                         description: "Number of releases to compare",
+                                         optional: true,
+                                         default_value: 5,
                                          type: Integer),
             FastlaneCore::ConfigItem.new(key: :ttid_screen_count,
-                                  description: "Number of top screens to include in TTID report",
-                                     optional: true,
-                                default_value: 10,
+                                         description: "Number of top screens to include in TTID report",
+                                         optional: true,
+                                         default_value: 10,
                                          type: Integer),
             FastlaneCore::ConfigItem.new(key: :issue_count,
-                                  description: "Number of top issues to include per release",
-                                     optional: true,
-                                default_value: 10,
+                                         description: "Number of top issues to include per release",
+                                         optional: true,
+                                         default_value: 10,
                                          type: Integer),
             # ── Output ──
             FastlaneCore::ConfigItem.new(key: :output_json,
-                                  description: "Path to write JSON report file (optional)",
-                                     optional: true,
+                                         description: "Path to write JSON report file (optional)",
+                                         optional: true,
                                          type: String)
           ]
         end
@@ -462,10 +462,10 @@ module Fastlane
           }
         end
 
-        def safe_delta(a, b)
-          return nil if a.nil? || b.nil?
+        def safe_delta(current_value, previous_value)
+          return nil if current_value.nil? || previous_value.nil?
 
-          (a - b).round(6)
+          (current_value - previous_value).round(6)
         end
 
         def meets_target?(value, target)
@@ -488,7 +488,11 @@ module Fastlane
 
         def log_availability(label, data, target)
           rate = data[:crash_free_session_rate]
-          indicator = rate && target ? (rate >= target ? "✅" : "⚠️") : ""
+          indicator = if rate && target
+                        rate >= target ? "✅" : "⚠️"
+                      else
+                        ""
+                      end
           UI.message("  #{label}: #{format_pct(rate)} #{indicator} (target: #{format_pct(target)})")
           UI.message("    Sessions: #{data[:total_sessions]}, Users: #{data[:total_users]}")
         end
@@ -503,7 +507,11 @@ module Fastlane
           UI.message("  Release-over-Release:")
           releases.each do |r|
             rate = r[:crash_free_session_rate]
-            indicator = rate && target ? (rate >= target ? "✅" : "⚠️") : ""
+            indicator = if rate && target
+                          rate >= target ? "✅" : "⚠️"
+                        else
+                          ""
+                        end
             UI.message("    #{r[:release]}: #{format_pct(rate)} #{indicator}")
           end
         end
@@ -511,7 +519,11 @@ module Fastlane
         def log_ttid(label, screens, target_p95)
           UI.message("  #{label}: #{screens.length} screens")
           screens.first(5).each do |s|
-            indicator = s[:p95] && target_p95 ? (s[:p95] <= target_p95 ? "✅" : "⚠️") : ""
+            indicator = if s[:p95] && target_p95
+                          s[:p95] <= target_p95 ? "✅" : "⚠️"
+                        else
+                          ""
+                        end
             UI.message("    #{s[:transaction]}: p50=#{s[:p50]}ms p75=#{s[:p75]}ms p95=#{s[:p95]}ms (#{s[:count]} loads) #{indicator}")
           end
         end
@@ -530,7 +542,11 @@ module Fastlane
           # Availability
           current_rate = report.dig(:availability, :current, :crash_free_session_rate)
           target = params[:crash_free_target]
-          indicator = current_rate && target ? (current_rate >= target ? "✅" : "⚠️") : ""
+          indicator = if current_rate && target
+                        current_rate >= target ? "✅" : "⚠️"
+                      else
+                        ""
+                      end
           UI.message("Crash-free sessions: #{format_pct(current_rate)} #{indicator} (target: #{format_pct(target)})")
 
           if report.dig(:availability, :delta)
@@ -545,7 +561,11 @@ module Fastlane
             avg_p95 = screens.map { |s| s[:p95] }.compact
             avg_p95_val = avg_p95.empty? ? nil : (avg_p95.sum / avg_p95.length).round(1)
             target_p95 = params[:ttid_p95_target_ms]
-            indicator = avg_p95_val && target_p95 ? (avg_p95_val <= target_p95 ? "✅" : "⚠️") : ""
+            indicator = if avg_p95_val && target_p95
+                          avg_p95_val <= target_p95 ? "✅" : "⚠️"
+                        else
+                          ""
+                        end
             UI.message("TTID avg p95: #{avg_p95_val}ms #{indicator} (target: #{target_p95}ms)")
           end
 

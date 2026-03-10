@@ -59,32 +59,32 @@ module Fastlane
         def available_options
           [
             FastlaneCore::ConfigItem.new(key: :auth_token,
-                                     env_name: "SENTRY_AUTH_TOKEN",
-                                  description: "Sentry API Bearer auth token",
-                                     optional: false,
+                                         env_name: "SENTRY_AUTH_TOKEN",
+                                         description: "Sentry API Bearer auth token",
+                                         optional: false,
                                          type: String,
-                                    sensitive: true,
-                           code_gen_sensitive: true,
-                                verify_block: proc do |value|
-                                                UI.user_error!("No Sentry auth token given, pass using `auth_token: 'token'`") if value.to_s.empty?
-                                              end),
+                                         sensitive: true,
+                                         code_gen_sensitive: true,
+                                         verify_block: proc do |value|
+                                                         UI.user_error!("No Sentry auth token given, pass using `auth_token: 'token'`") if value.to_s.empty?
+                                                       end),
             FastlaneCore::ConfigItem.new(key: :server_url,
-                                     env_name: "SENTRY_API_SERVER_URL",
-                                  description: "Sentry API base URL",
-                                     optional: true,
-                                default_value: "https://sentry.io/api/0",
+                                         env_name: "SENTRY_API_SERVER_URL",
+                                         description: "Sentry API base URL",
+                                         optional: true,
+                                         default_value: "https://sentry.io/api/0",
                                          type: String),
             FastlaneCore::ConfigItem.new(key: :path,
-                                  description: "API endpoint path (e.g. '/organizations/my-org/sessions/')",
-                                     optional: false,
+                                         description: "API endpoint path (e.g. '/organizations/my-org/sessions/')",
+                                         optional: false,
                                          type: String,
-                                verify_block: proc do |value|
-                                                UI.user_error!("API path cannot be empty") if value.to_s.empty?
-                                              end),
+                                         verify_block: proc do |value|
+                                                         UI.user_error!("API path cannot be empty") if value.to_s.empty?
+                                                       end),
             FastlaneCore::ConfigItem.new(key: :params,
-                                  description: "Query parameters hash. Array values produce repeated keys.",
-                                     optional: true,
-                                default_value: {},
+                                         description: "Query parameters hash. Array values produce repeated keys.",
+                                         optional: true,
+                                         default_value: {},
                                          type: Hash)
           ]
         end

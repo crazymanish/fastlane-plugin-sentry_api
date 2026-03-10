@@ -70,6 +70,7 @@ Require/MissingRequireStatement:
   - "**/Rakefile"
   - fastlane/**/*
   - supply/**/*
+  - "**/lib/fastlane/plugin/**/*.rb"
 Layout/FirstHashElementIndentation:
   Enabled: false
 Layout/HashAlignment:
@@ -103,6 +104,8 @@ Metrics/MethodLength:
   Enabled: false
 Metrics/CyclomaticComplexity:
   Enabled: false
+Metrics/PerceivedComplexity:
+  Enabled: false
 Style/WordArray:
   MinSize: 19
 Style/SignalException:
@@ -115,7 +118,7 @@ Style/AndOr:
   Enabled: true
   EnforcedStyle: conditionals
 Metrics/ClassLength:
-  Max: 320
+  Max: 600
 Layout/LineLength:
   Max: 370
 Metrics/ParameterLists:

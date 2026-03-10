@@ -71,49 +71,49 @@ module Fastlane
         def available_options
           [
             FastlaneCore::ConfigItem.new(key: :auth_token,
-                                     env_name: "SENTRY_AUTH_TOKEN",
-                                  description: "Sentry API Bearer auth token",
-                                     optional: false,
+                                         env_name: "SENTRY_AUTH_TOKEN",
+                                         description: "Sentry API Bearer auth token",
+                                         optional: false,
                                          type: String,
-                                    sensitive: true,
-                           code_gen_sensitive: true,
-                                verify_block: proc do |value|
-                                                UI.user_error!("No Sentry auth token given, pass using `auth_token: 'token'`") if value.to_s.empty?
-                                              end),
+                                         sensitive: true,
+                                         code_gen_sensitive: true,
+                                         verify_block: proc do |value|
+                                                         UI.user_error!("No Sentry auth token given, pass using `auth_token: 'token'`") if value.to_s.empty?
+                                                       end),
             FastlaneCore::ConfigItem.new(key: :org_slug,
-                                     env_name: "SENTRY_ORG_SLUG",
-                                  description: "Sentry organization slug",
-                                     optional: false,
+                                         env_name: "SENTRY_ORG_SLUG",
+                                         description: "Sentry organization slug",
+                                         optional: false,
                                          type: String,
-                                verify_block: proc do |value|
-                                                UI.user_error!("No Sentry org slug given, pass using `org_slug: 'my-org'`") if value.to_s.empty?
-                                              end),
+                                         verify_block: proc do |value|
+                                                         UI.user_error!("No Sentry org slug given, pass using `org_slug: 'my-org'`") if value.to_s.empty?
+                                                       end),
             FastlaneCore::ConfigItem.new(key: :project_id,
-                                     env_name: "SENTRY_PROJECT_ID",
-                                  description: "Sentry numeric project ID",
-                                     optional: false,
+                                         env_name: "SENTRY_PROJECT_ID",
+                                         description: "Sentry numeric project ID",
+                                         optional: false,
                                          type: String,
-                                verify_block: proc do |value|
-                                                UI.user_error!("No Sentry project ID given, pass using `project_id: '12345'`") if value.to_s.empty?
-                                              end),
+                                         verify_block: proc do |value|
+                                                         UI.user_error!("No Sentry project ID given, pass using `project_id: '12345'`") if value.to_s.empty?
+                                                       end),
             FastlaneCore::ConfigItem.new(key: :environment,
-                                     env_name: "SENTRY_ENVIRONMENT",
-                                  description: "Environment filter (e.g. 'production')",
-                                     optional: true,
-                                default_value: "production",
+                                         env_name: "SENTRY_ENVIRONMENT",
+                                         description: "Environment filter (e.g. 'production')",
+                                         optional: true,
+                                         default_value: "production",
                                          type: String),
             FastlaneCore::ConfigItem.new(key: :stats_period,
-                                  description: "Rolling time window (e.g. '7d', '14d', '30d')",
-                                     optional: true,
-                                default_value: "7d",
+                                         description: "Rolling time window (e.g. '7d', '14d', '30d')",
+                                         optional: true,
+                                         default_value: "7d",
                                          type: String),
             FastlaneCore::ConfigItem.new(key: :start_date,
-                                  description: "Start date in ISO 8601 format. Use with end_date instead of stats_period",
-                                     optional: true,
+                                         description: "Start date in ISO 8601 format. Use with end_date instead of stats_period",
+                                         optional: true,
                                          type: String),
             FastlaneCore::ConfigItem.new(key: :end_date,
-                                  description: "End date in ISO 8601 format. Use with start_date instead of stats_period",
-                                     optional: true,
+                                         description: "End date in ISO 8601 format. Use with start_date instead of stats_period",
+                                         optional: true,
                                          type: String)
           ]
         end

@@ -264,7 +264,7 @@ describe Fastlane::Actions::SentrySloReportAction do
         expect(written['period']).to eq('7d')
         expect(written['availability']).not_to be_nil
       ensure
-        File.delete(json_path) if File.exist?(json_path)
+        FileUtils.rm_f(json_path)
       end
     end
   end

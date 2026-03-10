@@ -75,53 +75,53 @@ module Fastlane
         def available_options
           [
             FastlaneCore::ConfigItem.new(key: :auth_token,
-                                     env_name: "SENTRY_AUTH_TOKEN",
-                                  description: "Sentry API Bearer auth token",
-                                     optional: false,
+                                         env_name: "SENTRY_AUTH_TOKEN",
+                                         description: "Sentry API Bearer auth token",
+                                         optional: false,
                                          type: String,
-                                    sensitive: true,
-                           code_gen_sensitive: true,
-                                verify_block: proc do |value|
-                                                UI.user_error!("No Sentry auth token given, pass using `auth_token: 'token'`") if value.to_s.empty?
-                                              end),
+                                         sensitive: true,
+                                         code_gen_sensitive: true,
+                                         verify_block: proc do |value|
+                                                         UI.user_error!("No Sentry auth token given, pass using `auth_token: 'token'`") if value.to_s.empty?
+                                                       end),
             FastlaneCore::ConfigItem.new(key: :org_slug,
-                                     env_name: "SENTRY_ORG_SLUG",
-                                  description: "Sentry organization slug",
-                                     optional: false,
+                                         env_name: "SENTRY_ORG_SLUG",
+                                         description: "Sentry organization slug",
+                                         optional: false,
                                          type: String,
-                                verify_block: proc do |value|
-                                                UI.user_error!("No Sentry org slug given, pass using `org_slug: 'my-org'`") if value.to_s.empty?
-                                              end),
+                                         verify_block: proc do |value|
+                                                         UI.user_error!("No Sentry org slug given, pass using `org_slug: 'my-org'`") if value.to_s.empty?
+                                                       end),
             FastlaneCore::ConfigItem.new(key: :project_slug,
-                                     env_name: "SENTRY_PROJECT_SLUG",
-                                  description: "Sentry project slug (e.g. 'ios', 'android')",
-                                     optional: false,
+                                         env_name: "SENTRY_PROJECT_SLUG",
+                                         description: "Sentry project slug (e.g. 'ios', 'android')",
+                                         optional: false,
                                          type: String,
-                                verify_block: proc do |value|
-                                                UI.user_error!("No Sentry project slug given, pass using `project_slug: 'ios'`") if value.to_s.empty?
-                                              end),
+                                         verify_block: proc do |value|
+                                                         UI.user_error!("No Sentry project slug given, pass using `project_slug: 'ios'`") if value.to_s.empty?
+                                                       end),
             FastlaneCore::ConfigItem.new(key: :query,
-                                  description: "Sentry search query (e.g. 'is:unresolved', 'is:unresolved release:v1.0')",
-                                     optional: true,
-                                default_value: "is:unresolved",
+                                         description: "Sentry search query (e.g. 'is:unresolved', 'is:unresolved release:v1.0')",
+                                         optional: true,
+                                         default_value: "is:unresolved",
                                          type: String),
             FastlaneCore::ConfigItem.new(key: :sort,
-                                  description: "Sort order: 'date', 'new', 'freq', 'priority', 'user', 'trend'",
-                                     optional: true,
-                                default_value: "freq",
+                                         description: "Sort order: 'date', 'new', 'freq', 'priority', 'user', 'trend'",
+                                         optional: true,
+                                         default_value: "freq",
                                          type: String),
             FastlaneCore::ConfigItem.new(key: :stats_period,
-                                  description: "Time window for issue stats (e.g. '7d', '14d', '30d')",
-                                     optional: true,
+                                         description: "Time window for issue stats (e.g. '7d', '14d', '30d')",
+                                         optional: true,
                                          type: String),
             FastlaneCore::ConfigItem.new(key: :per_page,
-                                  description: "Number of issues to return (max 100)",
-                                     optional: true,
-                                default_value: 25,
+                                         description: "Number of issues to return (max 100)",
+                                         optional: true,
+                                         default_value: 25,
                                          type: Integer),
             FastlaneCore::ConfigItem.new(key: :cursor,
-                                  description: "Pagination cursor for fetching next page of results",
-                                     optional: true,
+                                         description: "Pagination cursor for fetching next page of results",
+                                         optional: true,
                                          type: String)
           ]
         end
@@ -182,7 +182,7 @@ module Fastlane
         end
 
         def parse_response(json)
-          return [] unless json.is_a?(Array)
+          return [] unless json.kind_of?(Array)
 
           json.map do |issue|
             {
