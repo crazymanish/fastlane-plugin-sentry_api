@@ -29,11 +29,20 @@ module Fastlane
           req['Authorization'] = "Bearer #{auth_token}"
           req['Content-Type'] = 'application/json'
 
-          response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == 'https') do |http|
-            http.open_timeout = 30
-            http.read_timeout = 60
-            http.request(req)
+          http = Net::HTTP.new(uri.hostname, uri.port)
+          if uri.scheme == 'https'
+            http.use_ssl = true
+            http.verify_mode = OpenSSL::SSL::VERIFY_PEER
+
+            # Disable CRL checking to avoid "unable to get certificate CRL" errors
+            cert_store = OpenSSL::X509::Store.new
+            cert_store.set_default_paths
+            http.cert_store = cert_store
           end
+          http.open_timeout = 30
+          http.read_timeout = 60
+
+          response = http.request(req)
 
           status_code = response.code.to_i
           body = response.body.to_s
