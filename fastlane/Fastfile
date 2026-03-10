@@ -1,0 +1,32 @@
+lane :test do
+  sentry_api(
+    path: "/organizations/my-org/projects/",
+    params: {}
+  )
+end
+
+lane :availability_check do
+  sentry_crash_free_sessions(stats_period: "7d")
+
+  rate = lane_context[SharedValues::SENTRY_CRASH_FREE_SESSION_RATE]
+  UI.important("Crash-free session rate: #{(rate * 100).round(2)}%")
+end
+
+lane :ttid_check do
+  screens = sentry_ttid_percentiles(stats_period: "7d", per_page: 10)
+  screens.each do |s|
+    UI.message("#{s[:transaction]}: p50=#{s[:p50]}ms p95=#{s[:p95]}ms (#{s[:count]} loads)")
+  end
+end
+
+lane :slo_report do
+  sentry_slo_report(
+    crash_free_target: 0.998,
+    ttid_p95_target_ms: 1000,
+    compare_weeks: true,
+    compare_releases: true,
+    current_release: "v25.10.0",
+    previous_release: "v25.9.0",
+    output_json: "slo_report.json"
+  )
+end
