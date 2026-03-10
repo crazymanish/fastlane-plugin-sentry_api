@@ -5,11 +5,11 @@ require 'fastlane/plugin/sentry_api/version'
 Gem::Specification.new do |spec|
   spec.name          = 'fastlane-plugin-sentry_api'
   spec.version       = Fastlane::SentryApi::VERSION
-  spec.author        = 'Manish Rathi'
+  spec.author        = 'crazymanish'
   spec.email         = 'i.am.manish.rathi@gmail.com'
 
-  spec.summary       = 'Sentry APIs'
-  # spec.homepage      = "https://github.com/<GITHUB_USERNAME>/fastlane-plugin-sentry_api"
+  spec.summary       = 'Fastlane plugin for Sentry APIs - crash-free rates, TTID percentiles, issue tracking, and SLO reports'
+  spec.homepage      = "https://github.com/crazymanish/fastlane-plugin-sentry_api"
   spec.license       = "MIT"
 
   spec.files         = Dir["lib/**/*"] + %w(README.md LICENSE)
