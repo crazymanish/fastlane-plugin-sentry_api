@@ -163,7 +163,7 @@ Query TTID (Time to Initial Display) percentiles per screen from the Sentry Even
 | `sort` | `String` | No | `-count()` | Sort order |
 | `include_overall` | `Boolean` | No | `false` | Also fetch overall/aggregate TTID percentiles across all screens |
 
-**Output (SharedValues):** `SENTRY_TTID_DATA` (array of `{ transaction:, p50:, p75:, p95:, count: }`), `SENTRY_TTID_OVERALL` (hash with `{ p50:, p75:, p95:, count: }` when `include_overall` is true)
+**Output (SharedValues):** `SENTRY_TTID_DATA` (array of `{ transaction:, avg:, p50:, p75:, p95:, count: }`), `SENTRY_TTID_OVERALL` (hash with `{ avg:, p50:, p75:, p95:, count: }` when `include_overall` is true)
 
 **Examples:**
 
@@ -171,7 +171,7 @@ Query TTID (Time to Initial Display) percentiles per screen from the Sentry Even
 # Top 10 screens by load count
 screens = sentry_ttid_percentiles(stats_period: "7d", per_page: 10)
 screens.each do |s|
-  UI.message("#{s[:transaction]}: p50=#{s[:p50]}ms p95=#{s[:p95]}ms (#{s[:count]} loads)")
+  UI.message("#{s[:transaction]}: avg=#{s[:avg]}ms p50=#{s[:p50]}ms p95=#{s[:p95]}ms (#{s[:count]} loads)")
 end
 
 # With overall aggregate TTID
@@ -309,7 +309,7 @@ Includes target checking with ✅/⚠️ indicators and optional JSON file outpu
 
 The `:latency` section includes:
 - `:current` — array of per-screen TTID data
-- `:overall` — aggregate TTID `{ p50:, p75:, p95:, count: }` across all screens
+- `:overall` — aggregate TTID `{ avg:, p50:, p75:, p95:, count: }` across all screens
 - `:app_launch` — `{ cold: { p50:, p75:, p95:, count: }, warm: { ... } }`
 - `:previous`, `:overall_previous`, `:app_launch_previous` — week-over-week counterparts (when `compare_weeks` is true)
 
@@ -338,7 +338,7 @@ report = lane_context[SharedValues::SENTRY_SLO_REPORT]
 
 # Overall TTID
 overall = report[:latency][:overall]
-UI.message("Overall TTID p95: #{overall[:p95]}ms")
+UI.message("Overall TTID avg: #{overall[:avg]}ms p95: #{overall[:p95]}ms")
 
 # App launch
 cold = report[:latency][:app_launch][:cold]
@@ -375,11 +375,11 @@ end
 lane :ttid_check do
   screens = sentry_ttid_percentiles(stats_period: "7d", per_page: 10, include_overall: true)
   screens.each do |s|
-    UI.message("#{s[:transaction]}: p50=#{s[:p50]}ms p95=#{s[:p95]}ms (#{s[:count]} loads)")
+    UI.message("#{s[:transaction]}: avg=#{s[:avg]}ms p50=#{s[:p50]}ms p95=#{s[:p95]}ms (#{s[:count]} loads)")
   end
 
   overall = lane_context[SharedValues::SENTRY_TTID_OVERALL]
-  UI.important("Overall TTID: p50=#{overall[:p50]}ms p95=#{overall[:p95]}ms") if overall
+  UI.important("Overall TTID: avg=#{overall[:avg]}ms p50=#{overall[:p50]}ms p95=#{overall[:p95]}ms") if overall
 end
 
 lane :app_launch_check do
