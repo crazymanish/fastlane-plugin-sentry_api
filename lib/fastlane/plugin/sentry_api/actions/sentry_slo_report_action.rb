@@ -410,6 +410,7 @@ module Fastlane
         def fetch_ttid(auth_token:, org_slug:, project_id:, environment:, stats_period: nil, start_date: nil, end_date: nil, per_page: 10)
           fields = [
             'transaction',
+            'avg(measurements.time_to_initial_display)',
             'p50(measurements.time_to_initial_display)',
             'p75(measurements.time_to_initial_display)',
             'p95(measurements.time_to_initial_display)',
@@ -445,6 +446,7 @@ module Fastlane
           data.map do |row|
             {
               transaction: row['transaction'],
+              avg: round_ms(row['avg(measurements.time_to_initial_display)']),
               p50: round_ms(row['p50(measurements.time_to_initial_display)']),
               p75: round_ms(row['p75(measurements.time_to_initial_display)']),
               p95: round_ms(row['p95(measurements.time_to_initial_display)']),
@@ -455,6 +457,7 @@ module Fastlane
 
         def fetch_ttid_overall(auth_token:, org_slug:, project_id:, environment:, stats_period: nil, start_date: nil, end_date: nil)
           fields = [
+            'avg(measurements.time_to_initial_display)',
             'p50(measurements.time_to_initial_display)',
             'p75(measurements.time_to_initial_display)',
             'p95(measurements.time_to_initial_display)',
@@ -487,6 +490,7 @@ module Fastlane
 
           row = response[:json]&.dig('data', 0) || {}
           {
+            avg: round_ms(row['avg(measurements.time_to_initial_display)']),
             p50: round_ms(row['p50(measurements.time_to_initial_display)']),
             p75: round_ms(row['p75(measurements.time_to_initial_display)']),
             p95: round_ms(row['p95(measurements.time_to_initial_display)']),
@@ -666,7 +670,7 @@ module Fastlane
         end
 
         def empty_ttid_overall
-          { p50: nil, p75: nil, p95: nil, count: nil }
+          { avg: nil, p50: nil, p75: nil, p95: nil, count: nil }
         end
 
         def round_ms(value)
