@@ -13,16 +13,28 @@ lane :availability_check do
 end
 
 lane :ttid_check do
-  screens = sentry_ttid_percentiles(stats_period: "7d", per_page: 10)
+  screens = sentry_ttid_percentiles(stats_period: "7d", per_page: 10, include_overall: true)
   screens.each do |s|
     UI.message("#{s[:transaction]}: p50=#{s[:p50]}ms p95=#{s[:p95]}ms (#{s[:count]} loads)")
   end
+
+  overall = lane_context[SharedValues::SENTRY_TTID_OVERALL]
+  UI.important("Overall TTID: p50=#{overall[:p50]}ms p95=#{overall[:p95]}ms") if overall
+end
+
+lane :app_launch_check do
+  result = sentry_app_launch(stats_period: "7d")
+  cold = result[:cold_start]
+  warm = result[:warm_start]
+  UI.message("Cold start: p50=#{cold[:p50]}ms p95=#{cold[:p95]}ms (#{cold[:count]} launches)")
+  UI.message("Warm start: p50=#{warm[:p50]}ms p95=#{warm[:p95]}ms (#{warm[:count]} launches)")
 end
 
 lane :slo_report do
   sentry_slo_report(
     crash_free_target: 0.998,
     ttid_p95_target_ms: 1000,
+    app_launch_p95_target_ms: 2000,
     compare_weeks: true,
     compare_releases: true,
     current_release: "v25.10.0",

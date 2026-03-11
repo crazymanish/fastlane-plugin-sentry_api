@@ -158,4 +158,88 @@ describe Fastlane::Actions::SentryTtidPercentilesAction do
       end.to raise_error(FastlaneCore::Interface::FastlaneError, /Sentry Events API error 500/)
     end
   end
+
+  describe '#run with include_overall' do
+    let(:overall_response) do
+      {
+        status: 200,
+        body: '{}',
+        json: {
+          'data' => [
+            {
+              'p50(measurements.time_to_initial_display)' => 350.0,
+              'p75(measurements.time_to_initial_display)' => 520.0,
+              'p95(measurements.time_to_initial_display)' => 950.0,
+              'count()' => 500_000
+            }
+          ]
+        }
+      }
+    end
+
+    before do
+      call_count = 0
+      allow(Fastlane::Helper::SentryApiHelper).to receive(:get_events) do |**args|
+        call_count += 1
+        fields = args[:params][:field]
+        if fields.include?('transaction')
+          mock_response
+        else
+          overall_response
+        end
+      end
+    end
+
+    it 'fetches overall TTID aggregate' do
+      Fastlane::Actions::SentryTtidPercentilesAction.run(
+        auth_token: auth_token,
+        org_slug: org_slug,
+        project_id: project_id,
+        stats_period: '7d',
+        environment: 'production',
+        include_overall: true
+      )
+
+      overall = Fastlane::Actions.lane_context[Fastlane::Actions::SharedValues::SENTRY_TTID_OVERALL]
+      expect(overall).to be_a(Hash)
+      expect(overall[:p50]).to eq(350.0)
+      expect(overall[:p75]).to eq(520.0)
+      expect(overall[:p95]).to eq(950.0)
+      expect(overall[:count]).to eq(500_000)
+    end
+
+    it 'calls Events API without transaction field for overall' do
+      expect(Fastlane::Helper::SentryApiHelper).to receive(:get_events).with(
+        auth_token: auth_token,
+        org_slug: org_slug,
+        params: hash_including(
+          field: [
+            'p50(measurements.time_to_initial_display)',
+            'p75(measurements.time_to_initial_display)',
+            'p95(measurements.time_to_initial_display)',
+            'count()'
+          ],
+          per_page: '1'
+        )
+      ).and_return(overall_response)
+
+      # Allow the per-screen call
+      allow(Fastlane::Helper::SentryApiHelper).to receive(:get_events).with(
+        auth_token: auth_token,
+        org_slug: org_slug,
+        params: hash_including(
+          field: array_including('transaction')
+        )
+      ).and_return(mock_response)
+
+      Fastlane::Actions::SentryTtidPercentilesAction.run(
+        auth_token: auth_token,
+        org_slug: org_slug,
+        project_id: project_id,
+        stats_period: '7d',
+        environment: 'production',
+        include_overall: true
+      )
+    end
+  end
 end

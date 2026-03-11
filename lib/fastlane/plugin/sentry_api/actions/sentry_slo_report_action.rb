@@ -80,6 +80,13 @@ module Fastlane
           )
           log_ttid("Current #{stats_period}", report[:latency][:current], params[:ttid_p95_target_ms])
 
+          # Overall/aggregate TTID
+          report[:latency][:overall] = fetch_ttid_overall(
+            auth_token: auth_token, org_slug: org_slug, project_id: project_id,
+            environment: environment, stats_period: stats_period
+          )
+          log_ttid_overall("Current #{stats_period}", report[:latency][:overall], params[:ttid_p95_target_ms])
+
           if params[:compare_weeks]
             prev_dates = previous_period_dates(days)
             report[:latency][:previous] = fetch_ttid(
@@ -89,9 +96,46 @@ module Fastlane
               per_page: params[:ttid_screen_count]
             )
             log_ttid("Previous #{stats_period}", report[:latency][:previous], params[:ttid_p95_target_ms])
+
+            report[:latency][:overall_previous] = fetch_ttid_overall(
+              auth_token: auth_token, org_slug: org_slug, project_id: project_id,
+              environment: environment,
+              start_date: prev_dates[:start], end_date: prev_dates[:end]
+            )
+            log_ttid_overall("Previous #{stats_period}", report[:latency][:overall_previous], params[:ttid_p95_target_ms])
           end
 
           report[:latency][:target_p95_ms] = params[:ttid_p95_target_ms]
+
+          # ── LATENCY (App Launch) ────────────────────────────────────────
+          UI.header("Latency (App Launch)")
+
+          report[:latency][:app_launch] = fetch_app_launch(
+            auth_token: auth_token, org_slug: org_slug, project_id: project_id,
+            environment: environment, stats_period: stats_period
+          )
+          log_app_launch("Current #{stats_period}", report[:latency][:app_launch], params[:app_launch_p95_target_ms])
+
+          if params[:compare_weeks]
+            prev_dates = previous_period_dates(days)
+            report[:latency][:app_launch_previous] = fetch_app_launch(
+              auth_token: auth_token, org_slug: org_slug, project_id: project_id,
+              environment: environment,
+              start_date: prev_dates[:start], end_date: prev_dates[:end]
+            )
+            log_app_launch("Previous #{stats_period}", report[:latency][:app_launch_previous], params[:app_launch_p95_target_ms])
+          end
+
+          report[:latency][:app_launch_p95_target_ms] = params[:app_launch_p95_target_ms]
+
+          # ── TOP CRASH ISSUES ────────────────────────────────────────────
+          UI.header("Top Crash Issues")
+
+          report[:issues][:top_crashes] = fetch_top_crash_issues(
+            auth_token: auth_token, org_slug: org_slug, project_slug: project_slug,
+            stats_period: stats_period, per_page: params[:crash_issue_count]
+          )
+          log_top_crashes(report[:issues][:top_crashes])
 
           # ── ISSUES (Release Comparison) ─────────────────────────────────
           if params[:current_release]
@@ -139,6 +183,8 @@ module Fastlane
             "  - Crash-free session/user rates (availability) with week-over-week delta",
             "  - Release-over-release crash-free rate comparison",
             "  - TTID p50/p75/p95 per screen (latency) with week-over-week delta",
+            "  - Overall/aggregate TTID percentiles across all screens",
+            "  - App launch latency (cold start & warm start) percentiles",
             "  - Issue counts and top issues per release (latest vs previous)",
             "",
             "Outputs a structured hash to lane_context and optionally writes JSON to a file."
@@ -194,6 +240,11 @@ module Fastlane
                                          optional: true,
                                          default_value: 1000,
                                          type: Integer),
+            FastlaneCore::ConfigItem.new(key: :app_launch_p95_target_ms,
+                                         description: "Target app launch (cold start) p95 in milliseconds",
+                                         optional: true,
+                                         default_value: 2000,
+                                         type: Integer),
             # ── Comparison flags ──
             FastlaneCore::ConfigItem.new(key: :compare_weeks,
                                          description: "Include week-over-week comparison",
@@ -229,6 +280,11 @@ module Fastlane
                                          description: "Number of top issues to include per release",
                                          optional: true,
                                          default_value: 10,
+                                         type: Integer),
+            FastlaneCore::ConfigItem.new(key: :crash_issue_count,
+                                         description: "Number of top crash issues to include",
+                                         optional: true,
+                                         default_value: 5,
                                          type: Integer),
             # ── Output ──
             FastlaneCore::ConfigItem.new(key: :output_json,
@@ -397,6 +453,137 @@ module Fastlane
           end
         end
 
+        def fetch_ttid_overall(auth_token:, org_slug:, project_id:, environment:, stats_period: nil, start_date: nil, end_date: nil)
+          fields = [
+            'p50(measurements.time_to_initial_display)',
+            'p75(measurements.time_to_initial_display)',
+            'p95(measurements.time_to_initial_display)',
+            'count()'
+          ]
+
+          params = {
+            dataset: 'metrics',
+            field: fields,
+            project: project_id.to_s,
+            query: 'event.type:transaction transaction.op:ui.load',
+            per_page: '1'
+          }
+
+          if start_date && end_date
+            params[:start] = start_date
+            params[:end] = end_date
+          else
+            params[:statsPeriod] = stats_period
+          end
+
+          params[:environment] = environment if environment
+
+          response = Helper::SentryApiHelper.get_events(auth_token: auth_token, org_slug: org_slug, params: params)
+
+          unless response[:status].between?(200, 299)
+            UI.error("Sentry Events API error #{response[:status]}: #{response[:body]}")
+            return empty_ttid_overall
+          end
+
+          row = response[:json]&.dig('data', 0) || {}
+          {
+            p50: round_ms(row['p50(measurements.time_to_initial_display)']),
+            p75: round_ms(row['p75(measurements.time_to_initial_display)']),
+            p95: round_ms(row['p95(measurements.time_to_initial_display)']),
+            count: row['count()']
+          }
+        end
+
+        def fetch_app_launch(auth_token:, org_slug:, project_id:, environment:, stats_period: nil, start_date: nil, end_date: nil)
+          result = {}
+
+          [:cold, :warm].each do |start_type|
+            measurement = start_type == :cold ? 'app_start_cold' : 'app_start_warm'
+
+            fields = [
+              "p50(measurements.#{measurement})",
+              "p75(measurements.#{measurement})",
+              "p95(measurements.#{measurement})",
+              'count()'
+            ]
+
+            params = {
+              dataset: 'metrics',
+              field: fields,
+              project: project_id.to_s,
+              query: "event.type:transaction has:measurements.#{measurement}",
+              per_page: '1'
+            }
+
+            if start_date && end_date
+              params[:start] = start_date
+              params[:end] = end_date
+            else
+              params[:statsPeriod] = stats_period
+            end
+
+            params[:environment] = environment if environment
+
+            response = Helper::SentryApiHelper.get_events(auth_token: auth_token, org_slug: org_slug, params: params)
+
+            if response[:status].between?(200, 299)
+              row = response[:json]&.dig('data', 0) || {}
+              result[start_type] = {
+                p50: round_ms(row["p50(measurements.#{measurement})"]),
+                p75: round_ms(row["p75(measurements.#{measurement})"]),
+                p95: round_ms(row["p95(measurements.#{measurement})"]),
+                count: row['count()']
+              }
+            else
+              UI.error("Sentry Events API error #{response[:status]} for #{start_type} start: #{response[:body]}")
+              result[start_type] = { p50: nil, p75: nil, p95: nil, count: nil }
+            end
+          end
+
+          result
+        end
+
+        # Map a generic stats_period to the closest value the Issues API accepts ('24h' or '14d').
+        def issues_api_stats_period(stats_period)
+          return '24h' if stats_period == '24h'
+
+          # Anything longer than 24h → use 14d (the only other accepted bucket)
+          '14d'
+        end
+
+        def fetch_top_crash_issues(auth_token:, org_slug:, project_slug:, stats_period:, per_page:)
+          response = Helper::SentryApiHelper.get_issues(
+            auth_token: auth_token,
+            org_slug: org_slug,
+            project_slug: project_slug,
+            params: {
+              query: 'is:unresolved issue.category:error error.unhandled:true',
+              sort: 'freq',
+              statsPeriod: issues_api_stats_period(stats_period),
+              per_page: per_page.to_s
+            }
+          )
+
+          unless response[:status].between?(200, 299)
+            UI.error("Sentry Issues API error #{response[:status]}: #{response[:body]}")
+            return []
+          end
+
+          issues_data = response[:json] || []
+          issues_data.first(per_page).map do |issue|
+            {
+              id: issue['id'],
+              short_id: issue['shortId'],
+              title: issue['title'],
+              event_count: (issue['count'] || '0').to_i,
+              user_count: issue['userCount'] || 0,
+              level: issue['level'],
+              first_seen: issue['firstSeen'],
+              last_seen: issue['lastSeen']
+            }
+          end
+        end
+
         def fetch_issues_for_release(auth_token:, org_slug:, project_slug:, release:, per_page:)
           response = Helper::SentryApiHelper.get_issues(
             auth_token: auth_token,
@@ -478,6 +665,10 @@ module Fastlane
           { crash_free_session_rate: nil, crash_free_user_rate: nil, total_sessions: nil, total_users: nil }
         end
 
+        def empty_ttid_overall
+          { p50: nil, p75: nil, p95: nil, count: nil }
+        end
+
         def round_ms(value)
           return nil if value.nil?
 
@@ -528,6 +719,50 @@ module Fastlane
           end
         end
 
+        def log_ttid_overall(label, overall, target_p95)
+          return unless overall
+
+          indicator = if overall[:p95] && target_p95
+                        overall[:p95] <= target_p95 ? "✅" : "⚠️"
+                      else
+                        ""
+                      end
+          UI.message("  #{label} (Overall): p50=#{overall[:p50]}ms p75=#{overall[:p75]}ms p95=#{overall[:p95]}ms (#{overall[:count]} loads) #{indicator}")
+        end
+
+        def log_app_launch(label, app_launch, target_p95)
+          return unless app_launch
+
+          [:cold, :warm].each do |start_type|
+            data = app_launch[start_type]
+            next unless data
+
+            type_label = start_type == :cold ? 'Cold start' : 'Warm start'
+            if data[:p50]
+              indicator = if data[:p95] && target_p95
+                            data[:p95] <= target_p95 ? "✅" : "⚠️"
+                          else
+                            ""
+                          end
+              UI.message("  #{label} #{type_label}: p50=#{data[:p50]}ms p75=#{data[:p75]}ms p95=#{data[:p95]}ms (#{data[:count]} launches) #{indicator}")
+            else
+              UI.message("  #{label} #{type_label}: no data")
+            end
+          end
+        end
+
+        def log_top_crashes(crashes)
+          if crashes.empty?
+            UI.message("  No crash issues found")
+            return
+          end
+
+          UI.message("  Top #{crashes.length} crash issues:")
+          crashes.each_with_index do |issue, idx|
+            UI.message("    #{idx + 1}. #{issue[:short_id]}: #{issue[:title]} (#{issue[:event_count]} events, #{issue[:user_count]} users)")
+          end
+        end
+
         def log_issues(release, data)
           UI.message("  #{release}: #{data[:count]} unresolved issues")
           data[:issues].first(3).each_with_index do |issue, idx|
@@ -555,18 +790,53 @@ module Fastlane
             UI.message("Week-over-week delta: #{sign}#{format_pct(delta)}")
           end
 
-          # Latency
-          screens = report.dig(:latency, :current) || []
-          if screens.any?
-            avg_p95 = screens.map { |s| s[:p95] }.compact
-            avg_p95_val = avg_p95.empty? ? nil : (avg_p95.sum / avg_p95.length).round(1)
+          # Latency - Overall TTID
+          overall = report.dig(:latency, :overall)
+          if overall && overall[:p95]
             target_p95 = params[:ttid_p95_target_ms]
-            indicator = if avg_p95_val && target_p95
-                          avg_p95_val <= target_p95 ? "✅" : "⚠️"
+            indicator = if target_p95
+                          overall[:p95] <= target_p95 ? "✅" : "⚠️"
                         else
                           ""
                         end
-            UI.message("TTID avg p95: #{avg_p95_val}ms #{indicator} (target: #{target_p95}ms)")
+            UI.message("TTID overall p95: #{overall[:p95]}ms #{indicator} (target: #{target_p95}ms)")
+            UI.message("TTID overall p50: #{overall[:p50]}ms · p75: #{overall[:p75]}ms (#{overall[:count]} loads)")
+          end
+
+          # Latency - Per-screen TTID
+          screens = report.dig(:latency, :current) || []
+          if screens.any?
+            UI.message("TTID top screens: #{screens.length} measured")
+          end
+
+          # Latency - App Launch
+          app_launch = report.dig(:latency, :app_launch)
+          if app_launch
+            cold = app_launch[:cold]
+            warm = app_launch[:warm]
+            launch_target = params[:app_launch_p95_target_ms]
+
+            if cold && cold[:p95]
+              indicator = if launch_target
+                            cold[:p95] <= launch_target ? "✅" : "⚠️"
+                          else
+                            ""
+                          end
+              UI.message("Cold start p95: #{cold[:p95]}ms #{indicator} (target: #{launch_target}ms)")
+            end
+
+            if warm && warm[:p95]
+              UI.message("Warm start p95: #{warm[:p95]}ms")
+            end
+          end
+
+          # Top Crash Issues
+          top_crashes = report.dig(:issues, :top_crashes) || []
+          if top_crashes.any?
+            UI.message("Top crash issues (#{top_crashes.length}):")
+            top_crashes.each_with_index do |issue, idx|
+              UI.message("  #{idx + 1}. #{issue[:short_id]} \u2014 #{issue[:title]} (#{issue[:event_count]} events, #{issue[:user_count]} users)")
+            end
           end
 
           # Issues

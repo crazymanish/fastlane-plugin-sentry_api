@@ -98,6 +98,57 @@ describe Fastlane::Actions::SentrySloReportAction do
     }
   end
 
+  let(:ttid_overall_response) do
+    {
+      status: 200,
+      body: '{}',
+      json: {
+        'data' => [
+          {
+            'p50(measurements.time_to_initial_display)' => 350.0,
+            'p75(measurements.time_to_initial_display)' => 520.0,
+            'p95(measurements.time_to_initial_display)' => 950.0,
+            'count()' => 500_000
+          }
+        ]
+      }
+    }
+  end
+
+  let(:cold_start_response) do
+    {
+      status: 200,
+      body: '{}',
+      json: {
+        'data' => [
+          {
+            'p50(measurements.app_start_cold)' => 1522.3,
+            'p75(measurements.app_start_cold)' => 2800.5,
+            'p95(measurements.app_start_cold)' => 4916.1,
+            'count()' => 85_000
+          }
+        ]
+      }
+    }
+  end
+
+  let(:warm_start_response) do
+    {
+      status: 200,
+      body: '{}',
+      json: {
+        'data' => [
+          {
+            'p50(measurements.app_start_warm)' => 280.4,
+            'p75(measurements.app_start_warm)' => 420.7,
+            'p95(measurements.app_start_warm)' => 890.2,
+            'count()' => 120_000
+          }
+        ]
+      }
+    }
+  end
+
   let(:issues_response) do
     {
       status: 200,
@@ -134,7 +185,22 @@ describe Fastlane::Actions::SentrySloReportAction do
         end
       end
 
-      allow(Fastlane::Helper::SentryApiHelper).to receive(:get_events).and_return(ttid_response)
+      # Events API: per-screen TTID, overall TTID, and app launch
+      allow(Fastlane::Helper::SentryApiHelper).to receive(:get_events) do |**args|
+        fields = args[:params][:field]
+        query = args[:params][:query] || ''
+
+        if query.include?('app_start_cold')
+          cold_start_response
+        elsif query.include?('app_start_warm')
+          warm_start_response
+        elsif fields.include?('transaction')
+          ttid_response
+        else
+          ttid_overall_response
+        end
+      end
+
       allow(Fastlane::Helper::SentryApiHelper).to receive(:get_issues).and_return(issues_response)
     end
 
@@ -148,13 +214,15 @@ describe Fastlane::Actions::SentrySloReportAction do
         stats_period: '7d',
         crash_free_target: 0.998,
         ttid_p95_target_ms: 1000,
+        app_launch_p95_target_ms: 2000,
         compare_weeks: true,
         compare_releases: true,
         current_release: 'v25.10.0',
         previous_release: 'v25.9.0',
         release_count: 5,
         ttid_screen_count: 10,
-        issue_count: 10
+        issue_count: 10,
+        crash_issue_count: 5
       )
 
       # Verify report structure
@@ -194,11 +262,46 @@ describe Fastlane::Actions::SentrySloReportAction do
       expect(screens[0][:transaction]).to eq('MainViewController')
       expect(screens[0][:p95]).to eq(890.0)
 
+      # Latency - overall TTID
+      overall = report[:latency][:overall]
+      expect(overall).to be_a(Hash)
+      expect(overall[:p50]).to eq(350.0)
+      expect(overall[:p75]).to eq(520.0)
+      expect(overall[:p95]).to eq(950.0)
+      expect(overall[:count]).to eq(500_000)
+
+      # Latency - overall previous (WoW)
+      overall_prev = report[:latency][:overall_previous]
+      expect(overall_prev).to be_a(Hash)
+      expect(overall_prev[:p95]).to eq(950.0)
+
       # Latency - previous
       expect(report[:latency][:previous]).to be_an(Array)
 
       # Latency - target
       expect(report[:latency][:target_p95_ms]).to eq(1000)
+
+      # Latency - app launch
+      app_launch = report[:latency][:app_launch]
+      expect(app_launch).to be_a(Hash)
+      expect(app_launch[:cold][:p50]).to eq(1522.3)
+      expect(app_launch[:cold][:p95]).to eq(4916.1)
+      expect(app_launch[:warm][:p50]).to eq(280.4)
+      expect(app_launch[:warm][:p95]).to eq(890.2)
+
+      # Latency - app launch target
+      expect(report[:latency][:app_launch_p95_target_ms]).to eq(2000)
+
+      # Latency - app launch previous (WoW)
+      expect(report[:latency][:app_launch_previous]).to be_a(Hash)
+      expect(report[:latency][:target_p95_ms]).to eq(1000)
+
+      # Issues - top crashes
+      top_crashes = report[:issues][:top_crashes]
+      expect(top_crashes).to be_an(Array)
+      expect(top_crashes.length).to eq(1)
+      expect(top_crashes[0][:short_id]).to eq('MBA-1234')
+      expect(top_crashes[0][:event_count]).to eq(450)
 
       # Issues - current release
       current_issues = report[:issues][:current_release]
@@ -221,10 +324,12 @@ describe Fastlane::Actions::SentrySloReportAction do
         stats_period: '7d',
         crash_free_target: 0.998,
         ttid_p95_target_ms: 1000,
+        app_launch_p95_target_ms: 2000,
         compare_weeks: true,
         compare_releases: true,
         current_release: 'v25.10.0',
-        previous_release: 'v25.9.0'
+        previous_release: 'v25.9.0',
+        crash_issue_count: 5
       )
 
       report = Fastlane::Actions.lane_context[Fastlane::Actions::SharedValues::SENTRY_SLO_REPORT]
@@ -238,7 +343,21 @@ describe Fastlane::Actions::SentrySloReportAction do
   describe '#run with JSON output' do
     before do
       allow(Fastlane::Helper::SentryApiHelper).to receive(:get_sessions).and_return(sessions_response)
-      allow(Fastlane::Helper::SentryApiHelper).to receive(:get_events).and_return(ttid_response)
+      allow(Fastlane::Helper::SentryApiHelper).to receive(:get_events) do |**args|
+        fields = args[:params][:field]
+        query = args[:params][:query] || ''
+
+        if query.include?('app_start_cold')
+          cold_start_response
+        elsif query.include?('app_start_warm')
+          warm_start_response
+        elsif fields.include?('transaction')
+          ttid_response
+        else
+          ttid_overall_response
+        end
+      end
+      allow(Fastlane::Helper::SentryApiHelper).to receive(:get_issues).and_return(issues_response)
     end
 
     it 'writes JSON report to file' do
@@ -256,7 +375,8 @@ describe Fastlane::Actions::SentrySloReportAction do
           ttid_p95_target_ms: 1000,
           compare_weeks: false,
           compare_releases: false,
-          output_json: json_path
+          output_json: json_path,
+          crash_issue_count: 5
         )
 
         expect(File.exist?(json_path)).to be(true)
@@ -272,7 +392,21 @@ describe Fastlane::Actions::SentrySloReportAction do
   describe '#run availability only (no WoW, no RoR)' do
     before do
       allow(Fastlane::Helper::SentryApiHelper).to receive(:get_sessions).and_return(sessions_response)
-      allow(Fastlane::Helper::SentryApiHelper).to receive(:get_events).and_return(ttid_response)
+      allow(Fastlane::Helper::SentryApiHelper).to receive(:get_events) do |**args|
+        fields = args[:params][:field]
+        query = args[:params][:query] || ''
+
+        if query.include?('app_start_cold')
+          cold_start_response
+        elsif query.include?('app_start_warm')
+          warm_start_response
+        elsif fields.include?('transaction')
+          ttid_response
+        else
+          ttid_overall_response
+        end
+      end
+      allow(Fastlane::Helper::SentryApiHelper).to receive(:get_issues).and_return(issues_response)
     end
 
     it 'skips WoW and RoR comparisons when disabled' do
@@ -286,14 +420,34 @@ describe Fastlane::Actions::SentrySloReportAction do
         crash_free_target: 0.998,
         ttid_p95_target_ms: 1000,
         compare_weeks: false,
-        compare_releases: false
+        compare_releases: false,
+        crash_issue_count: 5
       )
 
       expect(report[:availability][:current]).not_to be_nil
       expect(report[:availability][:previous]).to be_nil
       expect(report[:availability][:delta]).to be_nil
       expect(report[:availability][:releases]).to be_nil
-      expect(report[:issues]).to eq({})
+
+      # Top crash issues are still fetched
+      expect(report[:issues][:top_crashes]).to be_an(Array)
+      expect(report[:issues][:top_crashes].length).to eq(1)
+
+      # No release-scoped issues
+      expect(report[:issues][:current_release]).to be_nil
+      expect(report[:issues][:previous_release]).to be_nil
+
+      # Overall TTID is still populated
+      expect(report[:latency][:overall]).to be_a(Hash)
+      expect(report[:latency][:overall][:p95]).to eq(950.0)
+
+      # App launch is still populated
+      expect(report[:latency][:app_launch]).to be_a(Hash)
+      expect(report[:latency][:app_launch][:cold][:p95]).to eq(4916.1)
+
+      # But no previous-period data
+      expect(report[:latency][:overall_previous]).to be_nil
+      expect(report[:latency][:app_launch_previous]).to be_nil
     end
   end
 end

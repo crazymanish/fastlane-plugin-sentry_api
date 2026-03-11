@@ -5,6 +5,7 @@ module Fastlane
   module Actions
     module SharedValues
       SENTRY_TTID_DATA = :SENTRY_TTID_DATA
+      SENTRY_TTID_OVERALL = :SENTRY_TTID_OVERALL
       SENTRY_TTID_STATUS_CODE = :SENTRY_TTID_STATUS_CODE
       SENTRY_TTID_JSON = :SENTRY_TTID_JSON
     end
@@ -45,6 +46,24 @@ module Fastlane
           UI.success("Fetched TTID data for #{result.length} screens")
           result.first(5).each do |screen|
             UI.message("  #{screen[:transaction]}: p50=#{screen[:p50]}ms p75=#{screen[:p75]}ms p95=#{screen[:p95]}ms (#{screen[:count]} loads)")
+          end
+
+          # Fetch overall/aggregate TTID when requested
+          if params[:include_overall]
+            overall_params = build_overall_query_params(params, project_id)
+            overall_response = Helper::SentryApiHelper.get_events(
+              auth_token: auth_token,
+              org_slug: org_slug,
+              params: overall_params
+            )
+
+            if overall_response[:status].between?(200, 299)
+              overall = parse_overall_response(overall_response[:json])
+              Actions.lane_context[SharedValues::SENTRY_TTID_OVERALL] = overall
+              UI.success("Overall TTID: p50=#{overall[:p50]}ms p75=#{overall[:p75]}ms p95=#{overall[:p95]}ms (#{overall[:count]} loads)")
+            else
+              UI.error("Failed to fetch overall TTID: #{overall_response[:status]}")
+            end
           end
 
           result
@@ -136,13 +155,19 @@ module Fastlane
                                          description: "Sort order (e.g. '-count()', '-p95(measurements.time_to_initial_display)')",
                                          optional: true,
                                          default_value: "-count()",
-                                         type: String)
+                                         type: String),
+            FastlaneCore::ConfigItem.new(key: :include_overall,
+                                         description: "Also fetch overall/aggregate TTID percentiles across all screens",
+                                         optional: true,
+                                         default_value: false,
+                                         type: Fastlane::Boolean)
           ]
         end
 
         def output
           [
             ['SENTRY_TTID_DATA', 'Array of hashes with :transaction, :p50, :p75, :p95, :count per screen'],
+            ['SENTRY_TTID_OVERALL', 'Hash with :p50, :p75, :p95, :count for overall aggregate TTID (when include_overall is true)'],
             ['SENTRY_TTID_STATUS_CODE', 'HTTP status code from the Sentry API'],
             ['SENTRY_TTID_JSON', 'Raw JSON response from the Sentry API']
           ]
@@ -215,6 +240,48 @@ module Fastlane
           query_params[:environment] = params[:environment] if params[:environment]
 
           query_params
+        end
+
+        def build_overall_query_params(params, project_id)
+          fields = [
+            'p50(measurements.time_to_initial_display)',
+            'p75(measurements.time_to_initial_display)',
+            'p95(measurements.time_to_initial_display)',
+            'count()'
+          ]
+
+          query_parts = ['event.type:transaction']
+          query_parts << "transaction.op:#{params[:transaction_op]}" if params[:transaction_op]
+          query_parts << "release:#{params[:release]}" if params[:release]
+
+          query_params = {
+            dataset: 'metrics',
+            field: fields,
+            project: project_id.to_s,
+            query: query_parts.join(' '),
+            per_page: '1'
+          }
+
+          if params[:start_date] && params[:end_date]
+            query_params[:start] = params[:start_date]
+            query_params[:end] = params[:end_date]
+          else
+            query_params[:statsPeriod] = params[:stats_period] || '7d'
+          end
+
+          query_params[:environment] = params[:environment] if params[:environment]
+
+          query_params
+        end
+
+        def parse_overall_response(json)
+          row = json&.dig('data', 0) || {}
+          {
+            p50: round_ms(row['p50(measurements.time_to_initial_display)']),
+            p75: round_ms(row['p75(measurements.time_to_initial_display)']),
+            p95: round_ms(row['p95(measurements.time_to_initial_display)']),
+            count: row['count()']
+          }
         end
 
         def parse_response(json)

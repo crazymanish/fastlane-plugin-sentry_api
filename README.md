@@ -21,7 +21,8 @@ A Fastlane plugin providing reusable actions for querying [Sentry](https://sentr
 | [`sentry_api`](#sentry_api) | Generic GET request to any Sentry API endpoint |
 | [`sentry_crash_free_sessions`](#sentry_crash_free_sessions) | Crash-free session & user rates from the Sessions API |
 | [`sentry_crash_free_users`](#sentry_crash_free_users) | User-focused crash-free rate (convenience wrapper) |
-| [`sentry_ttid_percentiles`](#sentry_ttid_percentiles) | TTID p50/p75/p95 per screen from the Discover API |
+| [`sentry_ttid_percentiles`](#sentry_ttid_percentiles) | TTID p50/p75/p95 per screen (+ overall aggregate) from the Discover API |
+| [`sentry_app_launch`](#sentry_app_launch) | App launch latency (cold start & warm start) percentiles |
 | [`sentry_list_issues`](#sentry_list_issues) | Fetch project issues with filtering & sorting |
 | [`sentry_slo_report`](#sentry_slo_report) | Comprehensive SLO report orchestrating all the above |
 
@@ -143,7 +144,7 @@ UI.message("Crash-free users: #{(rate * 100).round(2)}%")
 
 ### `sentry_ttid_percentiles`
 
-Query TTID (Time to Initial Display) percentiles per screen from the Sentry Events/Discover API. Returns p50, p75, p95 per screen transaction, sorted by load count.
+Query TTID (Time to Initial Display) percentiles per screen from the Sentry Events/Discover API. Returns p50, p75, p95 per screen transaction, sorted by load count. Optionally fetches overall/aggregate TTID percentiles across all screens.
 
 **Parameters:**
 
@@ -160,8 +161,9 @@ Query TTID (Time to Initial Display) percentiles per screen from the Sentry Even
 | `transaction_op` | `String` | No | `ui.load` | Transaction operation filter |
 | `per_page` | `Integer` | No | `20` | Number of screens to return (max 100) |
 | `sort` | `String` | No | `-count()` | Sort order |
+| `include_overall` | `Boolean` | No | `false` | Also fetch overall/aggregate TTID percentiles across all screens |
 
-**Output (SharedValues):** `SENTRY_TTID_DATA` (array of `{ transaction:, p50:, p75:, p95:, count: }`)
+**Output (SharedValues):** `SENTRY_TTID_DATA` (array of `{ transaction:, p50:, p75:, p95:, count: }`), `SENTRY_TTID_OVERALL` (hash with `{ p50:, p75:, p95:, count: }` when `include_overall` is true)
 
 **Examples:**
 
@@ -172,11 +174,57 @@ screens.each do |s|
   UI.message("#{s[:transaction]}: p50=#{s[:p50]}ms p95=#{s[:p95]}ms (#{s[:count]} loads)")
 end
 
+# With overall aggregate TTID
+screens = sentry_ttid_percentiles(stats_period: "7d", per_page: 10, include_overall: true)
+overall = lane_context[SharedValues::SENTRY_TTID_OVERALL]
+UI.message("Overall TTID: p50=#{overall[:p50]}ms p95=#{overall[:p95]}ms") if overall
+
 # Filter by release
 sentry_ttid_percentiles(release: "v25.10.0", stats_period: "14d")
 
 # Custom date range (for week-over-week comparison)
 sentry_ttid_percentiles(
+  start_date: "2026-02-24T00:00:00Z",
+  end_date: "2026-03-03T00:00:00Z"
+)
+```
+
+---
+
+### `sentry_app_launch`
+
+Query app launch latency (cold start & warm start) percentiles from the Sentry Events/Discover API. Uses Sentry's `measurements.app_start_cold` and `measurements.app_start_warm` fields.
+
+**Parameters:**
+
+| Key | Type | Required | Default | Description |
+|-----|------|----------|---------|-------------|
+| `auth_token` | `String` | Yes | `SENTRY_AUTH_TOKEN` | API Bearer auth token |
+| `org_slug` | `String` | Yes | `SENTRY_ORG_SLUG` | Organization slug |
+| `project_id` | `String` | Yes | `SENTRY_PROJECT_ID` | Numeric project ID |
+| `environment` | `String` | No | `production` | Environment filter |
+| `stats_period` | `String` | No | `7d` | Rolling window |
+| `start_date` | `String` | No | — | ISO 8601 start date |
+| `end_date` | `String` | No | — | ISO 8601 end date |
+| `release` | `String` | No | — | Filter by release version |
+
+**Output (SharedValues):** `SENTRY_APP_LAUNCH_DATA` (hash with `:cold_start` and `:warm_start`, each containing `{ p50:, p75:, p95:, count: }`)
+
+**Examples:**
+
+```ruby
+# Fetch app launch metrics for the last 7 days
+result = sentry_app_launch(stats_period: "7d")
+cold = result[:cold_start]
+warm = result[:warm_start]
+UI.message("Cold start: p50=#{cold[:p50]}ms p95=#{cold[:p95]}ms (#{cold[:count]} launches)")
+UI.message("Warm start: p50=#{warm[:p50]}ms p95=#{warm[:p95]}ms (#{warm[:count]} launches)")
+
+# Filter by release
+sentry_app_launch(release: "v25.10.0", stats_period: "14d")
+
+# Custom date range
+sentry_app_launch(
   start_date: "2026-02-24T00:00:00Z",
   end_date: "2026-03-03T00:00:00Z"
 )
@@ -226,8 +274,10 @@ sentry_list_issues(query: "is:unresolved first-release:v25.10.0", sort: "date")
 Generate a comprehensive SLO report by orchestrating multiple Sentry API calls. Produces a structured report with:
 
 - **Availability** — Crash-free session/user rates with week-over-week delta
-- **Latency** — TTID p50/p75/p95 per screen with week-over-week delta
+- **Latency (TTID)** — Overall/aggregate TTID percentiles + per-screen p50/p75/p95 with week-over-week delta
+- **Latency (App Launch)** — Cold start & warm start percentiles with week-over-week delta
 - **Release comparison** — Release-over-release crash-free rates
+- **Top Crash Issues** — Top unhandled error issues by frequency (`is:unresolved issue.category:error error.unhandled:true`)
 - **Issues** — Issue counts and top issues per release (latest vs previous)
 
 Includes target checking with ✅/⚠️ indicators and optional JSON file output.
@@ -244,6 +294,7 @@ Includes target checking with ✅/⚠️ indicators and optional JSON file outpu
 | `stats_period` | `String` | No | `7d` | Rolling window |
 | `crash_free_target` | `Float` | No | `0.998` | Target crash-free session rate (e.g. 0.998 = 99.8%) |
 | `ttid_p95_target_ms` | `Integer` | No | `1000` | Target TTID p95 in milliseconds |
+| `app_launch_p95_target_ms` | `Integer` | No | `2000` | Target app launch (cold start) p95 in milliseconds |
 | `compare_weeks` | `Boolean` | No | `true` | Include week-over-week comparison |
 | `compare_releases` | `Boolean` | No | `true` | Include release-over-release comparison |
 | `current_release` | `String` | No | — | Current release version for issue comparison |
@@ -251,9 +302,21 @@ Includes target checking with ✅/⚠️ indicators and optional JSON file outpu
 | `release_count` | `Integer` | No | `5` | Number of releases to compare |
 | `ttid_screen_count` | `Integer` | No | `10` | Number of top screens in TTID report |
 | `issue_count` | `Integer` | No | `10` | Number of top issues per release |
+| `crash_issue_count` | `Integer` | No | `5` | Number of top crash (unhandled error) issues to include |
 | `output_json` | `String` | No | — | Path to write JSON report file |
 
 **Output (SharedValues):** `SENTRY_SLO_REPORT` (complete hash with `:availability`, `:latency`, `:issues`)
+
+The `:latency` section includes:
+- `:current` — array of per-screen TTID data
+- `:overall` — aggregate TTID `{ p50:, p75:, p95:, count: }` across all screens
+- `:app_launch` — `{ cold: { p50:, p75:, p95:, count: }, warm: { ... } }`
+- `:previous`, `:overall_previous`, `:app_launch_previous` — week-over-week counterparts (when `compare_weeks` is true)
+
+The `:issues` section includes:
+- `:top_crashes` — array of top unhandled error issues (always fetched, not release-scoped)
+- `:current_release` — `{ version:, count:, issues: [] }` (when `current_release` is provided)
+- `:previous_release` — same structure (when `previous_release` is provided)
 
 **Examples:**
 
@@ -262,12 +325,29 @@ Includes target checking with ✅/⚠️ indicators and optional JSON file outpu
 sentry_slo_report(
   crash_free_target: 0.998,
   ttid_p95_target_ms: 1000,
+  app_launch_p95_target_ms: 2000,
   compare_weeks: true,
   compare_releases: true,
   current_release: "v25.10.0",
   previous_release: "v25.9.0",
   output_json: "slo_report.json"
 )
+
+# Access report data
+report = lane_context[SharedValues::SENTRY_SLO_REPORT]
+
+# Overall TTID
+overall = report[:latency][:overall]
+UI.message("Overall TTID p95: #{overall[:p95]}ms")
+
+# App launch
+cold = report[:latency][:app_launch][:cold]
+UI.message("Cold start p95: #{cold[:p95]}ms")
+
+# Top crash issues
+report[:issues][:top_crashes].each do |issue|
+  UI.message("#{issue[:short_id]}: #{issue[:title]} (#{issue[:event_count]} events)")
+end
 
 # Quick availability check only
 report = sentry_slo_report(
@@ -292,10 +372,29 @@ lane :availability_check do
   UI.important("Crash-free session rate: #{(rate * 100).round(2)}%")
 end
 
+lane :ttid_check do
+  screens = sentry_ttid_percentiles(stats_period: "7d", per_page: 10, include_overall: true)
+  screens.each do |s|
+    UI.message("#{s[:transaction]}: p50=#{s[:p50]}ms p95=#{s[:p95]}ms (#{s[:count]} loads)")
+  end
+
+  overall = lane_context[SharedValues::SENTRY_TTID_OVERALL]
+  UI.important("Overall TTID: p50=#{overall[:p50]}ms p95=#{overall[:p95]}ms") if overall
+end
+
+lane :app_launch_check do
+  result = sentry_app_launch(stats_period: "7d")
+  cold = result[:cold_start]
+  warm = result[:warm_start]
+  UI.message("Cold start: p50=#{cold[:p50]}ms p95=#{cold[:p95]}ms")
+  UI.message("Warm start: p50=#{warm[:p50]}ms p95=#{warm[:p95]}ms")
+end
+
 lane :slo_report do
   sentry_slo_report(
     crash_free_target: 0.998,
     ttid_p95_target_ms: 1000,
+    app_launch_p95_target_ms: 2000,
     current_release: "v25.10.0",
     previous_release: "v25.9.0",
     output_json: "slo_report.json"
