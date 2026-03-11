@@ -819,19 +819,8 @@ module Fastlane
             cold = app_launch[:cold]
             warm = app_launch[:warm]
             launch_target = params[:app_launch_p95_target_ms]
-
-            if cold && cold[:p95]
-              indicator = if launch_target
-                            cold[:p95] <= launch_target ? "✅" : "⚠️"
-                          else
-                            ""
-                          end
-              UI.message("Cold start p95: #{cold[:p95]}ms #{indicator} (target: #{launch_target}ms)")
-            end
-
-            if warm && warm[:p95]
-              UI.message("Warm start p95: #{warm[:p95]}ms")
-            end
+            log_cold_start(cold, launch_target)
+            UI.message("Warm start p95: #{warm[:p95]}ms") if warm && warm[:p95]
           end
 
           # Top Crash Issues
@@ -854,6 +843,19 @@ module Fastlane
           end
 
           UI.success("SLO report generated at #{report[:generated_at]}")
+        end
+
+        def log_cold_start(cold, launch_target)
+          return unless cold && cold[:p95]
+
+          indicator = target_indicator(cold[:p95], launch_target)
+          UI.message("Cold start p95: #{cold[:p95]}ms #{indicator} (target: #{launch_target}ms)")
+        end
+
+        def target_indicator(value, target)
+          return "" unless target
+
+          value <= target ? "✅" : "⚠️"
         end
 
         def format_pct(value)
