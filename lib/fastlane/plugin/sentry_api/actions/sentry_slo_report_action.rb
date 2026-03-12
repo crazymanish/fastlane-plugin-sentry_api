@@ -133,7 +133,8 @@ module Fastlane
 
           report[:issues][:top_crashes] = fetch_top_crash_issues(
             auth_token: auth_token, org_slug: org_slug, project_slug: project_slug,
-            stats_period: stats_period, per_page: params[:crash_issue_count]
+            stats_period: stats_period, per_page: params[:crash_issue_count],
+            query: params[:crash_query]
           )
           log_top_crashes(report[:issues][:top_crashes])
 
@@ -286,6 +287,11 @@ module Fastlane
                                          optional: true,
                                          default_value: 5,
                                          type: Integer),
+            FastlaneCore::ConfigItem.new(key: :crash_query,
+                                         description: "Custom Sentry search query for top crash issues",
+                                         optional: true,
+                                         default_value: "is:unresolved issue.category:error error.unhandled:true",
+                                         type: String),
             # ── Output ──
             FastlaneCore::ConfigItem.new(key: :output_json,
                                          description: "Path to write JSON report file (optional)",
@@ -555,13 +561,13 @@ module Fastlane
           '14d'
         end
 
-        def fetch_top_crash_issues(auth_token:, org_slug:, project_slug:, stats_period:, per_page:)
+        def fetch_top_crash_issues(auth_token:, org_slug:, project_slug:, stats_period:, per_page:, query:)
           response = Helper::SentryApiHelper.get_issues(
             auth_token: auth_token,
             org_slug: org_slug,
             project_slug: project_slug,
             params: {
-              query: 'is:unresolved issue.category:error error.unhandled:true',
+              query: query,
               sort: 'freq',
               statsPeriod: issues_api_stats_period(stats_period),
               per_page: per_page.to_s

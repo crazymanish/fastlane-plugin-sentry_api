@@ -89,7 +89,7 @@ Query crash-free session and user rates from the Sentry Sessions API. Supports a
 | `per_page` | `Integer` | No | `10` | Number of groups to return (max 100) |
 | `order_by` | `String` | No | `-sum(session)` | Sort order for grouped results |
 
-**Output (SharedValues):** `SENTRY_CRASH_FREE_SESSION_RATE`, `SENTRY_CRASH_FREE_USER_RATE`, `SENTRY_TOTAL_SESSIONS`, `SENTRY_TOTAL_USERS`, `SENTRY_SESSION_GROUPS`
+**Output (SharedValues):** `SENTRY_CRASH_FREE_SESSION_RATE`, `SENTRY_CRASH_FREE_USER_RATE`, `SENTRY_TOTAL_SESSIONS`, `SENTRY_TOTAL_USERS`, `SENTRY_SESSION_GROUPS`, `SENTRY_CRASH_FREE_SESSIONS_STATUS_CODE`, `SENTRY_CRASH_FREE_SESSIONS_JSON`
 
 **Examples:**
 
@@ -130,7 +130,7 @@ Convenience action for fetching user-centric crash-free metrics. For full sessio
 | `start_date` | `String` | No | — | ISO 8601 start date |
 | `end_date` | `String` | No | — | ISO 8601 end date |
 
-**Output (SharedValues):** `SENTRY_CRASH_FREE_USER_RATE_ONLY`, `SENTRY_TOTAL_USERS_ONLY`
+**Output (SharedValues):** `SENTRY_CRASH_FREE_USER_RATE_ONLY`, `SENTRY_TOTAL_USERS_ONLY`, `SENTRY_CRASH_FREE_USERS_STATUS_CODE`, `SENTRY_CRASH_FREE_USERS_JSON`
 
 **Example:**
 
@@ -163,7 +163,7 @@ Query TTID (Time to Initial Display) percentiles per screen from the Sentry Even
 | `sort` | `String` | No | `-count()` | Sort order |
 | `include_overall` | `Boolean` | No | `false` | Also fetch overall/aggregate TTID percentiles across all screens |
 
-**Output (SharedValues):** `SENTRY_TTID_DATA` (array of `{ transaction:, avg:, p50:, p75:, p95:, count: }`), `SENTRY_TTID_OVERALL` (hash with `{ avg:, p50:, p75:, p95:, count: }` when `include_overall` is true)
+**Output (SharedValues):** `SENTRY_TTID_DATA` (array of `{ transaction:, p50:, p75:, p95:, count: }`), `SENTRY_TTID_OVERALL` (hash with `{ p50:, p75:, p95:, count: }` when `include_overall` is true), `SENTRY_TTID_STATUS_CODE`, `SENTRY_TTID_JSON`
 
 **Examples:**
 
@@ -171,7 +171,7 @@ Query TTID (Time to Initial Display) percentiles per screen from the Sentry Even
 # Top 10 screens by load count
 screens = sentry_ttid_percentiles(stats_period: "7d", per_page: 10)
 screens.each do |s|
-  UI.message("#{s[:transaction]}: avg=#{s[:avg]}ms p50=#{s[:p50]}ms p95=#{s[:p95]}ms (#{s[:count]} loads)")
+  UI.message("#{s[:transaction]}: p50=#{s[:p50]}ms p75=#{s[:p75]}ms p95=#{s[:p95]}ms (#{s[:count]} loads)")
 end
 
 # With overall aggregate TTID
@@ -208,7 +208,7 @@ Query app launch latency (cold start & warm start) percentiles from the Sentry E
 | `end_date` | `String` | No | — | ISO 8601 end date |
 | `release` | `String` | No | — | Filter by release version |
 
-**Output (SharedValues):** `SENTRY_APP_LAUNCH_DATA` (hash with `:cold_start` and `:warm_start`, each containing `{ p50:, p75:, p95:, count: }`)
+**Output (SharedValues):** `SENTRY_APP_LAUNCH_DATA` (hash with `:cold_start` and `:warm_start`, each containing `{ p50:, p75:, p95:, count: }`), `SENTRY_APP_LAUNCH_STATUS_CODE`, `SENTRY_APP_LAUNCH_JSON`
 
 **Examples:**
 
@@ -249,7 +249,7 @@ Fetch issues from a Sentry project. Supports filtering by release version, query
 | `per_page` | `Integer` | No | `25` | Number of issues to return (max 100) |
 | `cursor` | `String` | No | — | Pagination cursor |
 
-**Output (SharedValues):** `SENTRY_ISSUES` (array of issue hashes), `SENTRY_ISSUE_COUNT`
+**Output (SharedValues):** `SENTRY_ISSUES` (array of issue hashes with `:id`, `:short_id`, `:title`, `:culprit`, `:level`, `:status`, `:event_count`, `:user_count`, `:first_seen`, `:last_seen`, `:permalink`, `:metadata`), `SENTRY_ISSUE_COUNT`, `SENTRY_ISSUES_STATUS_CODE`, `SENTRY_ISSUES_JSON`
 
 **Examples:**
 
@@ -303,6 +303,7 @@ Includes target checking with ✅/⚠️ indicators and optional JSON file outpu
 | `ttid_screen_count` | `Integer` | No | `10` | Number of top screens in TTID report |
 | `issue_count` | `Integer` | No | `10` | Number of top issues per release |
 | `crash_issue_count` | `Integer` | No | `5` | Number of top crash (unhandled error) issues to include |
+| `crash_query` | `String` | No | `is:unresolved issue.category:error error.unhandled:true` | Custom Sentry search query for top crash issues |
 | `output_json` | `String` | No | — | Path to write JSON report file |
 
 **Output (SharedValues):** `SENTRY_SLO_REPORT` (complete hash with `:availability`, `:latency`, `:issues`)
@@ -375,11 +376,11 @@ end
 lane :ttid_check do
   screens = sentry_ttid_percentiles(stats_period: "7d", per_page: 10, include_overall: true)
   screens.each do |s|
-    UI.message("#{s[:transaction]}: avg=#{s[:avg]}ms p50=#{s[:p50]}ms p95=#{s[:p95]}ms (#{s[:count]} loads)")
+    UI.message("#{s[:transaction]}: p50=#{s[:p50]}ms p75=#{s[:p75]}ms p95=#{s[:p95]}ms (#{s[:count]} loads)")
   end
 
   overall = lane_context[SharedValues::SENTRY_TTID_OVERALL]
-  UI.important("Overall TTID: avg=#{overall[:avg]}ms p50=#{overall[:p50]}ms p95=#{overall[:p95]}ms") if overall
+  UI.important("Overall TTID: p50=#{overall[:p50]}ms p75=#{overall[:p75]}ms p95=#{overall[:p95]}ms") if overall
 end
 
 lane :app_launch_check do
