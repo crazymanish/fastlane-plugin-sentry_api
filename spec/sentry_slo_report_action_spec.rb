@@ -450,4 +450,117 @@ describe Fastlane::Actions::SentrySloReportAction do
       expect(report[:latency][:app_launch_previous]).to be_nil
     end
   end
+
+  describe '#run with ttid_exclude_screens' do
+    let(:excluded_screens) { ['AppContainerViewController', 'SplashScreenViewController'] }
+
+    before do
+      allow(Fastlane::Helper::SentryApiHelper).to receive(:get_sessions).and_return(sessions_response)
+      allow(Fastlane::Helper::SentryApiHelper).to receive(:get_events) do |**args|
+        fields = args[:params][:field]
+        query = args[:params][:query] || ''
+
+        if query.include?('app_start_cold')
+          cold_start_response
+        elsif query.include?('app_start_warm')
+          warm_start_response
+        elsif fields.include?('transaction')
+          ttid_response
+        else
+          ttid_overall_response
+        end
+      end
+      allow(Fastlane::Helper::SentryApiHelper).to receive(:get_issues).and_return(issues_response)
+    end
+
+    it 'includes exclusion clauses in all 4 TTID fetch calls' do
+      expected_query = 'event.type:transaction transaction.op:ui.load !transaction:AppContainerViewController !transaction:SplashScreenViewController'
+
+      # Expect per-screen TTID calls (current + previous) to include exclusion
+      expect(Fastlane::Helper::SentryApiHelper).to receive(:get_events).with(
+        auth_token: auth_token,
+        org_slug: org_slug,
+        params: hash_including(
+          query: expected_query,
+          field: array_including('transaction'),
+          sort: '-count()'
+        )
+      ).exactly(2).times.and_return(ttid_response)
+
+      # Expect overall TTID calls (current + previous) to include exclusion
+      expect(Fastlane::Helper::SentryApiHelper).to receive(:get_events).with(
+        auth_token: auth_token,
+        org_slug: org_slug,
+        params: hash_including(
+          query: expected_query,
+          per_page: '1'
+        )
+      ).exactly(2).times.and_return(ttid_overall_response)
+
+      # Allow app launch calls
+      allow(Fastlane::Helper::SentryApiHelper).to receive(:get_events).with(
+        auth_token: auth_token,
+        org_slug: org_slug,
+        params: hash_including(query: a_string_matching(/app_start/))
+      ).and_return(cold_start_response, warm_start_response)
+
+      Fastlane::Actions::SentrySloReportAction.run(
+        auth_token: auth_token,
+        org_slug: org_slug,
+        project_id: project_id,
+        project_slug: project_slug,
+        environment: 'production',
+        stats_period: '7d',
+        crash_free_target: 0.998,
+        ttid_p95_target_ms: 1000,
+        compare_weeks: true,
+        compare_releases: false,
+        crash_issue_count: 5,
+        ttid_exclude_screens: excluded_screens
+      )
+    end
+
+    it 'does not add exclusion clauses when ttid_exclude_screens is empty' do
+      expected_query = 'event.type:transaction transaction.op:ui.load'
+
+      expect(Fastlane::Helper::SentryApiHelper).to receive(:get_events).with(
+        auth_token: auth_token,
+        org_slug: org_slug,
+        params: hash_including(
+          query: expected_query,
+          field: array_including('transaction')
+        )
+      ).at_least(:once).and_return(ttid_response)
+
+      expect(Fastlane::Helper::SentryApiHelper).to receive(:get_events).with(
+        auth_token: auth_token,
+        org_slug: org_slug,
+        params: hash_including(
+          query: expected_query,
+          per_page: '1'
+        )
+      ).at_least(:once).and_return(ttid_overall_response)
+
+      allow(Fastlane::Helper::SentryApiHelper).to receive(:get_events).with(
+        auth_token: auth_token,
+        org_slug: org_slug,
+        params: hash_including(query: a_string_matching(/app_start/))
+      ).and_return(cold_start_response, warm_start_response)
+
+      Fastlane::Actions::SentrySloReportAction.run(
+        auth_token: auth_token,
+        org_slug: org_slug,
+        project_id: project_id,
+        project_slug: project_slug,
+        environment: 'production',
+        stats_period: '7d',
+        crash_free_target: 0.998,
+        ttid_p95_target_ms: 1000,
+        compare_weeks: false,
+        compare_releases: false,
+        crash_issue_count: 5,
+        ttid_exclude_screens: []
+      )
+    end
+  end
 end

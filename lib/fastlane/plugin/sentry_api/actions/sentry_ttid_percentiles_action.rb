@@ -160,7 +160,12 @@ module Fastlane
                                          description: "Also fetch overall/aggregate TTID percentiles across all screens",
                                          optional: true,
                                          default_value: false,
-                                         type: Fastlane::Boolean)
+                                         type: Fastlane::Boolean),
+            FastlaneCore::ConfigItem.new(key: :ttid_exclude_screens,
+                                         description: "Array of screen (transaction) names to exclude from TTID queries",
+                                         optional: true,
+                                         default_value: [],
+                                         type: Array)
           ]
         end
 
@@ -220,6 +225,9 @@ module Fastlane
           query_parts = ["event.type:transaction"]
           query_parts << "transaction.op:#{params[:transaction_op]}" if params[:transaction_op]
           query_parts << "release:#{params[:release]}" if params[:release]
+          (params[:ttid_exclude_screens] || []).each do |screen|
+            query_parts << "!transaction:#{screen}"
+          end
 
           query_params = {
             dataset: 'metrics',
@@ -253,6 +261,9 @@ module Fastlane
           query_parts = ['event.type:transaction']
           query_parts << "transaction.op:#{params[:transaction_op]}" if params[:transaction_op]
           query_parts << "release:#{params[:release]}" if params[:release]
+          (params[:ttid_exclude_screens] || []).each do |screen|
+            query_parts << "!transaction:#{screen}"
+          end
 
           query_params = {
             dataset: 'metrics',

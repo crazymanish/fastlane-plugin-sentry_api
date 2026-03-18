@@ -242,4 +242,118 @@ describe Fastlane::Actions::SentryTtidPercentilesAction do
       )
     end
   end
+
+  describe '#run with ttid_exclude_screens' do
+    before do
+      allow(Fastlane::Helper::SentryApiHelper).to receive(:get_events).and_return(mock_response)
+    end
+
+    it 'includes exclusion clauses in per-screen query' do
+      expected_query = 'event.type:transaction transaction.op:ui.load !transaction:AppContainerViewController !transaction:SplashScreenViewController'
+
+      expect(Fastlane::Helper::SentryApiHelper).to receive(:get_events).with(
+        auth_token: auth_token,
+        org_slug: org_slug,
+        params: hash_including(
+          query: expected_query
+        )
+      ).and_return(mock_response)
+
+      Fastlane::Actions::SentryTtidPercentilesAction.run(
+        auth_token: auth_token,
+        org_slug: org_slug,
+        project_id: project_id,
+        stats_period: '7d',
+        environment: 'production',
+        transaction_op: 'ui.load',
+        ttid_exclude_screens: ['AppContainerViewController', 'SplashScreenViewController']
+      )
+    end
+
+    it 'includes exclusion clauses in overall query' do
+      expected_query = 'event.type:transaction transaction.op:ui.load !transaction:AppContainerViewController !transaction:SplashScreenViewController'
+
+      # Allow per-screen call
+      allow(Fastlane::Helper::SentryApiHelper).to receive(:get_events).with(
+        auth_token: auth_token,
+        org_slug: org_slug,
+        params: hash_including(field: array_including('transaction'))
+      ).and_return(mock_response)
+
+      # Expect overall call with exclusion clauses
+      expect(Fastlane::Helper::SentryApiHelper).to receive(:get_events).with(
+        auth_token: auth_token,
+        org_slug: org_slug,
+        params: hash_including(
+          query: expected_query,
+          per_page: '1'
+        )
+      ).and_return({
+        status: 200,
+        body: '{}',
+        json: {
+          'data' => [{
+            'p50(measurements.time_to_initial_display)' => 350.0,
+            'p75(measurements.time_to_initial_display)' => 520.0,
+            'p95(measurements.time_to_initial_display)' => 950.0,
+            'count()' => 500_000
+          }]
+        }
+      })
+
+      Fastlane::Actions::SentryTtidPercentilesAction.run(
+        auth_token: auth_token,
+        org_slug: org_slug,
+        project_id: project_id,
+        stats_period: '7d',
+        environment: 'production',
+        include_overall: true,
+        transaction_op: 'ui.load',
+        ttid_exclude_screens: ['AppContainerViewController', 'SplashScreenViewController']
+      )
+    end
+
+    it 'does not add exclusion clauses when ttid_exclude_screens is empty' do
+      expected_query = 'event.type:transaction transaction.op:ui.load'
+
+      expect(Fastlane::Helper::SentryApiHelper).to receive(:get_events).with(
+        auth_token: auth_token,
+        org_slug: org_slug,
+        params: hash_including(
+          query: expected_query
+        )
+      ).and_return(mock_response)
+
+      Fastlane::Actions::SentryTtidPercentilesAction.run(
+        auth_token: auth_token,
+        org_slug: org_slug,
+        project_id: project_id,
+        stats_period: '7d',
+        environment: 'production',
+        transaction_op: 'ui.load',
+        ttid_exclude_screens: []
+      )
+    end
+
+    it 'does not add exclusion clauses when ttid_exclude_screens is not provided' do
+      expected_query = 'event.type:transaction transaction.op:ui.load'
+
+      expect(Fastlane::Helper::SentryApiHelper).to receive(:get_events).with(
+        auth_token: auth_token,
+        org_slug: org_slug,
+        params: hash_including(
+          query: expected_query
+        )
+      ).and_return(mock_response)
+
+      Fastlane::Actions::SentryTtidPercentilesAction.run(
+        auth_token: auth_token,
+        org_slug: org_slug,
+        project_id: project_id,
+        stats_period: '7d',
+        environment: 'production',
+        transaction_op: 'ui.load'
+      )
+    end
+  end
 end

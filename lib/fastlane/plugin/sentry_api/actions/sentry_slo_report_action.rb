@@ -76,14 +76,16 @@ module Fastlane
           report[:latency][:current] = fetch_ttid(
             auth_token: auth_token, org_slug: org_slug, project_id: project_id,
             environment: environment, stats_period: stats_period,
-            per_page: params[:ttid_screen_count]
+            per_page: params[:ttid_screen_count],
+            exclude_screens: params[:ttid_exclude_screens]
           )
           log_ttid("Current #{stats_period}", report[:latency][:current], params[:ttid_p95_target_ms])
 
           # Overall/aggregate TTID
           report[:latency][:overall] = fetch_ttid_overall(
             auth_token: auth_token, org_slug: org_slug, project_id: project_id,
-            environment: environment, stats_period: stats_period
+            environment: environment, stats_period: stats_period,
+            exclude_screens: params[:ttid_exclude_screens]
           )
           log_ttid_overall("Current #{stats_period}", report[:latency][:overall], params[:ttid_p95_target_ms])
 
@@ -93,14 +95,16 @@ module Fastlane
               auth_token: auth_token, org_slug: org_slug, project_id: project_id,
               environment: environment,
               start_date: prev_dates[:start], end_date: prev_dates[:end],
-              per_page: params[:ttid_screen_count]
+              per_page: params[:ttid_screen_count],
+              exclude_screens: params[:ttid_exclude_screens]
             )
             log_ttid("Previous #{stats_period}", report[:latency][:previous], params[:ttid_p95_target_ms])
 
             report[:latency][:overall_previous] = fetch_ttid_overall(
               auth_token: auth_token, org_slug: org_slug, project_id: project_id,
               environment: environment,
-              start_date: prev_dates[:start], end_date: prev_dates[:end]
+              start_date: prev_dates[:start], end_date: prev_dates[:end],
+              exclude_screens: params[:ttid_exclude_screens]
             )
             log_ttid_overall("Previous #{stats_period}", report[:latency][:overall_previous], params[:ttid_p95_target_ms])
           end
@@ -292,6 +296,11 @@ module Fastlane
                                          optional: true,
                                          default_value: "is:unresolved issue.category:error error.unhandled:true",
                                          type: String),
+            FastlaneCore::ConfigItem.new(key: :ttid_exclude_screens,
+                                         description: "Array of screen (transaction) names to exclude from TTID queries",
+                                         optional: true,
+                                         default_value: [],
+                                         type: Array),
             # ── Output ──
             FastlaneCore::ConfigItem.new(key: :output_json,
                                          description: "Path to write JSON report file (optional)",
@@ -333,7 +342,14 @@ module Fastlane
               compare_releases: false
             )
             rate = report[:availability][:current][:crash_free_session_rate]
-            UI.important("Crash-free: #{(rate * 100).round(2)}%")'
+            UI.important("Crash-free: #{(rate * 100).round(2)}%")',
+
+            '# Exclude specific screens from TTID metrics
+            sentry_slo_report(
+              crash_free_target: 0.998,
+              ttid_exclude_screens: ["AppContainerViewController", "SplashScreenViewController"],
+              output_json: "slo_report.json"
+            )'
           ]
         end
 
@@ -413,7 +429,7 @@ module Fastlane
           end
         end
 
-        def fetch_ttid(auth_token:, org_slug:, project_id:, environment:, stats_period: nil, start_date: nil, end_date: nil, per_page: 10)
+        def fetch_ttid(auth_token:, org_slug:, project_id:, environment:, stats_period: nil, start_date: nil, end_date: nil, per_page: 10, exclude_screens: [])
           fields = [
             'transaction',
             'avg(measurements.time_to_initial_display)',
@@ -427,7 +443,7 @@ module Fastlane
             dataset: 'metrics',
             field: fields,
             project: project_id.to_s,
-            query: 'event.type:transaction transaction.op:ui.load',
+            query: ttid_query(exclude_screens),
             sort: '-count()',
             per_page: per_page.to_s
           }
@@ -461,7 +477,7 @@ module Fastlane
           end
         end
 
-        def fetch_ttid_overall(auth_token:, org_slug:, project_id:, environment:, stats_period: nil, start_date: nil, end_date: nil)
+        def fetch_ttid_overall(auth_token:, org_slug:, project_id:, environment:, stats_period: nil, start_date: nil, end_date: nil, exclude_screens: [])
           fields = [
             'avg(measurements.time_to_initial_display)',
             'p50(measurements.time_to_initial_display)',
@@ -474,7 +490,7 @@ module Fastlane
             dataset: 'metrics',
             field: fields,
             project: project_id.to_s,
-            query: 'event.type:transaction transaction.op:ui.load',
+            query: ttid_query(exclude_screens),
             per_page: '1'
           }
 
@@ -677,6 +693,14 @@ module Fastlane
 
         def empty_ttid_overall
           { avg: nil, p50: nil, p75: nil, p95: nil, count: nil }
+        end
+
+        def ttid_query(exclude_screens)
+          parts = ['event.type:transaction transaction.op:ui.load']
+          (exclude_screens || []).each do |screen|
+            parts << "!transaction:#{screen}"
+          end
+          parts.join(' ')
         end
 
         def round_ms(value)

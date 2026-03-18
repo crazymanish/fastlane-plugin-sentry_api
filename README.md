@@ -162,6 +162,7 @@ Query TTID (Time to Initial Display) percentiles per screen from the Sentry Even
 | `per_page` | `Integer` | No | `20` | Number of screens to return (max 100) |
 | `sort` | `String` | No | `-count()` | Sort order |
 | `include_overall` | `Boolean` | No | `false` | Also fetch overall/aggregate TTID percentiles across all screens |
+| `ttid_exclude_screens` | `Array` | No | `[]` | Array of screen (transaction) names to exclude from TTID queries |
 
 **Output (SharedValues):** `SENTRY_TTID_DATA` (array of `{ transaction:, p50:, p75:, p95:, count: }`), `SENTRY_TTID_OVERALL` (hash with `{ p50:, p75:, p95:, count: }` when `include_overall` is true), `SENTRY_TTID_STATUS_CODE`, `SENTRY_TTID_JSON`
 
@@ -186,6 +187,13 @@ sentry_ttid_percentiles(release: "v25.10.0", stats_period: "14d")
 sentry_ttid_percentiles(
   start_date: "2026-02-24T00:00:00Z",
   end_date: "2026-03-03T00:00:00Z"
+)
+
+# Exclude specific screens (e.g. container or splash screens that inflate TTID)
+sentry_ttid_percentiles(
+  stats_period: "7d",
+  include_overall: true,
+  ttid_exclude_screens: ["AppContainerViewController", "SplashScreenViewController"]
 )
 ```
 
@@ -304,6 +312,7 @@ Includes target checking with ✅/⚠️ indicators and optional JSON file outpu
 | `issue_count` | `Integer` | No | `10` | Number of top issues per release |
 | `crash_issue_count` | `Integer` | No | `5` | Number of top crash (unhandled error) issues to include |
 | `crash_query` | `String` | No | `is:unresolved issue.category:error error.unhandled:true` | Custom Sentry search query for top crash issues |
+| `ttid_exclude_screens` | `Array` | No | `[]` | Array of screen (transaction) names to exclude from TTID queries |
 | `output_json` | `String` | No | — | Path to write JSON report file |
 
 **Output (SharedValues):** `SENTRY_SLO_REPORT` (complete hash with `:availability`, `:latency`, `:issues`)
@@ -357,6 +366,13 @@ report = sentry_slo_report(
 )
 rate = report[:availability][:current][:crash_free_session_rate]
 UI.important("Crash-free: #{(rate * 100).round(2)}%")
+
+# Exclude specific screens from TTID metrics
+sentry_slo_report(
+  crash_free_target: 0.998,
+  ttid_exclude_screens: ["AppContainerViewController", "SplashScreenViewController"],
+  output_json: "slo_report.json"
+)
 ```
 
 ---
