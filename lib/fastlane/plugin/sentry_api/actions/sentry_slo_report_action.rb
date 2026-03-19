@@ -135,11 +135,13 @@ module Fastlane
           # ── TOP CRASH ISSUES ────────────────────────────────────────────
           UI.header("Top Crash Issues")
 
-          report[:issues][:top_crashes] = fetch_top_crash_issues(
+          crash_result = fetch_top_crash_issues(
             auth_token: auth_token, org_slug: org_slug, project_slug: project_slug,
             stats_period: stats_period, per_page: params[:crash_issue_count],
             query: params[:crash_query]
           )
+          report[:issues][:top_crashes] = crash_result[:issues]
+          report[:issues][:total_crash_count] = crash_result[:total_count]
           log_top_crashes(report[:issues][:top_crashes])
 
           # ── ISSUES (Release Comparison) ─────────────────────────────────
@@ -586,17 +588,17 @@ module Fastlane
               query: query,
               sort: 'freq',
               statsPeriod: issues_api_stats_period(stats_period),
-              per_page: per_page.to_s
+              per_page: '100'
             }
           )
 
           unless response[:status].between?(200, 299)
             UI.error("Sentry Issues API error #{response[:status]}: #{response[:body]}")
-            return []
+            return { issues: [], total_count: 0 }
           end
 
           issues_data = response[:json] || []
-          issues_data.first(per_page).map do |issue|
+          issues = issues_data.first(per_page).map do |issue|
             {
               id: issue['id'],
               short_id: issue['shortId'],
@@ -608,6 +610,8 @@ module Fastlane
               last_seen: issue['lastSeen']
             }
           end
+
+          { issues: issues, total_count: issues_data.length }
         end
 
         def fetch_issues_for_release(auth_token:, org_slug:, project_slug:, release:, per_page:)

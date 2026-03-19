@@ -302,6 +302,7 @@ describe Fastlane::Actions::SentrySloReportAction do
       expect(top_crashes.length).to eq(1)
       expect(top_crashes[0][:short_id]).to eq('MBA-1234')
       expect(top_crashes[0][:event_count]).to eq(450)
+      expect(report[:issues][:total_crash_count]).to eq(1)
 
       # Issues - current release
       current_issues = report[:issues][:current_release]
@@ -432,6 +433,7 @@ describe Fastlane::Actions::SentrySloReportAction do
       # Top crash issues are still fetched
       expect(report[:issues][:top_crashes]).to be_an(Array)
       expect(report[:issues][:top_crashes].length).to eq(1)
+      expect(report[:issues][:total_crash_count]).to eq(1)
 
       # No release-scoped issues
       expect(report[:issues][:current_release]).to be_nil

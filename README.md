@@ -325,6 +325,7 @@ The `:latency` section includes:
 
 The `:issues` section includes:
 - `:top_crashes` — array of top unhandled error issues (always fetched, not release-scoped)
+- `:total_crash_count` — total number of crash issues matching the query (up to 100), useful when you only display top N but want to show the full count
 - `:current_release` — `{ version:, count:, issues: [] }` (when `current_release` is provided)
 - `:previous_release` — same structure (when `previous_release` is provided)
 
@@ -355,6 +356,7 @@ cold = report[:latency][:app_launch][:cold]
 UI.message("Cold start p95: #{cold[:p95]}ms")
 
 # Top crash issues
+UI.message("Total crash issues: #{report[:issues][:total_crash_count]}")
 report[:issues][:top_crashes].each do |issue|
   UI.message("#{issue[:short_id]}: #{issue[:title]} (#{issue[:event_count]} events)")
 end
