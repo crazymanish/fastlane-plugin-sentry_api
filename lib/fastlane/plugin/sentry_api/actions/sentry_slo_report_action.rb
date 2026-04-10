@@ -148,18 +148,26 @@ module Fastlane
           if params[:current_release]
             UI.header("Issues (Release Comparison)")
 
+            current_release = resolve_sentry_release_name(
+              version: params[:current_release], auth_token: auth_token,
+              org_slug: org_slug, project_id: project_id
+            )
             report[:issues][:current_release] = fetch_issues_for_release(
               auth_token: auth_token, org_slug: org_slug, project_slug: project_slug,
-              release: params[:current_release], per_page: params[:issue_count]
+              release: current_release, per_page: params[:issue_count]
             )
-            log_issues(params[:current_release], report[:issues][:current_release])
+            log_issues(current_release, report[:issues][:current_release])
 
             if params[:previous_release]
+              previous_release = resolve_sentry_release_name(
+                version: params[:previous_release], auth_token: auth_token,
+                org_slug: org_slug, project_id: project_id
+              )
               report[:issues][:previous_release] = fetch_issues_for_release(
                 auth_token: auth_token, org_slug: org_slug, project_slug: project_slug,
-                release: params[:previous_release], per_page: params[:issue_count]
+                release: previous_release, per_page: params[:issue_count]
               )
-              log_issues(params[:previous_release], report[:issues][:previous_release])
+              log_issues(previous_release, report[:issues][:previous_release])
             end
           end
 
@@ -422,8 +430,10 @@ module Fastlane
           groups = response[:json]&.dig('groups') || []
           groups.map do |group|
             totals = group['totals'] || {}
+            release = group.dig('by', 'release')
             {
-              release: group.dig('by', 'release'),
+              release: release,
+              display_version: extract_display_version(release),
               crash_free_session_rate: totals['crash_free_rate(session)'],
               crash_free_user_rate: totals['crash_free_rate(user)'],
               total_sessions: totals['sum(session)']
@@ -442,7 +452,6 @@ module Fastlane
           ]
 
           params = {
-            dataset: 'metrics',
             field: fields,
             project: project_id.to_s,
             query: ttid_query(exclude_screens),
@@ -489,7 +498,6 @@ module Fastlane
           ]
 
           params = {
-            dataset: 'metrics',
             field: fields,
             project: project_id.to_s,
             query: ttid_query(exclude_screens),
@@ -536,7 +544,6 @@ module Fastlane
             ]
 
             params = {
-              dataset: 'metrics',
               field: fields,
               project: project_id.to_s,
               query: "event.type:transaction has:measurements.#{measurement}",
@@ -645,7 +652,7 @@ module Fastlane
             }
           end
 
-          { version: release, count: issues.length, issues: issues }
+          { version: extract_display_version(release), count: issues.length, issues: issues }
         end
 
         # ── Date Utilities ────────────────────────────────────────────────
@@ -697,6 +704,52 @@ module Fastlane
 
         def empty_ttid_overall
           { avg: nil, p50: nil, p75: nil, p95: nil, count: nil }
+        end
+
+        # Resolve a bare version string (e.g. '5.38') to the full Sentry release name
+        # (e.g. 'nl.fastlane.app@5.38+26.04.03.12.22.54') via the Releases API.
+        # Falls back to the original version if no match is found.
+        def resolve_sentry_release_name(version:, auth_token:, org_slug:, project_id:)
+          response = Helper::SentryApiHelper.api_request(
+            auth_token: auth_token,
+            path: "/organizations/#{org_slug}/releases/",
+            params: { query: version, per_page: '10', project: project_id.to_s }
+          )
+
+          if response[:status].between?(200, 299)
+            releases = response[:json] || []
+            matching = releases.find do |r|
+              v = r['version'].to_s
+              v == version || v.match?(/\A[^@]+@#{Regexp.escape(version)}\+/)
+            end
+
+            if matching
+              UI.success("Resolved Sentry release: '#{version}' \u2192 '#{matching['version']}'")
+              return matching['version']
+            end
+          else
+            UI.important("Sentry Releases API returned #{response[:status]} for '#{version}'")
+          end
+
+          UI.important("No Sentry release found for '#{version}', using bare version")
+          version
+        rescue => e
+          UI.important("Failed to query Sentry Releases API for '#{version}': #{e.message}")
+          version
+        end
+
+        # Extract the short display version from a Sentry release name.
+        # 'nl.fastlane.app@5.38+26.04.03.12.22.54' → '5.38'
+        # '5.37' → '5.37'
+        def extract_display_version(release_name)
+          return release_name if release_name.nil? || release_name.empty?
+
+          if release_name.include?('@')
+            version_part = release_name.split('@').last
+            version_part.split('+').first
+          else
+            release_name
+          end
         end
 
         def ttid_query(exclude_screens)

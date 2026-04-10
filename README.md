@@ -288,6 +288,8 @@ Generate a comprehensive SLO report by orchestrating multiple Sentry API calls. 
 - **Top Crash Issues** — Top unhandled error issues by frequency (`is:unresolved issue.category:error error.unhandled:true`)
 - **Issues** — Issue counts and top issues per release (latest vs previous)
 
+Release versions passed to `current_release` and `previous_release` are automatically resolved to their full Sentry release names (e.g. `5.38` → `nl.fastlane.app@5.38+26.04.03.12.22.54`) via the Releases API. This means you can pass bare version strings and the action handles the lookup.
+
 Includes target checking with ✅/⚠️ indicators and optional JSON file output.
 
 **Parameters:**
@@ -317,6 +319,9 @@ Includes target checking with ✅/⚠️ indicators and optional JSON file outpu
 
 **Output (SharedValues):** `SENTRY_SLO_REPORT` (complete hash with `:availability`, `:latency`, `:issues`)
 
+The `:availability` section includes:
+- `:releases` — array of `{ release:, display_version:, crash_free_session_rate:, crash_free_user_rate:, total_sessions: }` per release (when `compare_releases` is true). The `display_version` is extracted from the full Sentry release name (e.g. `5.38` from `nl.fastlane.app@5.38+...`).
+
 The `:latency` section includes:
 - `:current` — array of per-screen TTID data
 - `:overall` — aggregate TTID `{ avg:, p50:, p75:, p95:, count: }` across all screens
@@ -326,7 +331,7 @@ The `:latency` section includes:
 The `:issues` section includes:
 - `:top_crashes` — array of top unhandled error issues (always fetched, not release-scoped)
 - `:total_crash_count` — total number of crash issues matching the query (up to 100), useful when you only display top N but want to show the full count
-- `:current_release` — `{ version:, count:, issues: [] }` (when `current_release` is provided)
+- `:current_release` — `{ version:, count:, issues: [] }` where `version` is the display version (e.g. `5.38`) (when `current_release` is provided)
 - `:previous_release` — same structure (when `previous_release` is provided)
 
 **Examples:**
