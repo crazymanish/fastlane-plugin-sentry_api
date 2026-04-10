@@ -733,7 +733,7 @@ module Fastlane
 
           UI.important("No Sentry release found for '#{version}', using bare version")
           version
-        rescue => e
+        rescue StandardError => e
           UI.important("Failed to query Sentry Releases API for '#{version}': #{e.message}")
           version
         end
